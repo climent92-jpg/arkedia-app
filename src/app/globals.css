@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #14213d;
+  --surface: #ffffff;
+  --border: #e4e7ec;
+  --muted: #667085;
+
+  /* ARK#ÈDIA brand */
+  --arkedia-blue: #1e51a4;
+  --arkedia-blue-dark: #163e7e;
+  --arkedia-blue-light: #eaf0fb;
+  --arkedia-accent: #ff7a45;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+
+  --color-arkedia-blue: var(--arkedia-blue);
+  --color-arkedia-blue-dark: var(--arkedia-blue-dark);
+  --color-arkedia-blue-light: var(--arkedia-blue-light);
+  --color-arkedia-accent: var(--arkedia-accent);
+
+  --font-sans: var(--font-inter);
+
+  --radius-card: 1rem;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Comfortable tap targets on mobile */
+button,
+a {
+  touch-action: manipulation;
+}
+
+::selection {
+  background: var(--arkedia-blue-light);
+  color: var(--arkedia-blue-dark);
+}
+
+/* Hide scrollbars on horizontal chip/tab rows without losing scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
