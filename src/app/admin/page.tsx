@@ -1,32 +1,76 @@
 import Link from "next/link";
 import {
+  AlertTriangle,
   CalendarDays,
   GraduationCap,
-  MessageCircle,
   Music4,
   UploadCloud,
+  Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
-import { chatThreads, schedule, students, teachers } from "@/lib/mock-data";
+import { getAdminStats, getAllTeachers } from "@/lib/admin-data";
+import { isAdminConfigured } from "@/lib/supabase/config";
 
-export default function AdminPanellPage() {
-  const stats = [
-    { label: "Professors", value: teachers.length, icon: Music4 },
-    { label: "Alumnes", value: students.length, icon: GraduationCap },
-    { label: "Classes / setmana", value: schedule.length, icon: CalendarDays },
-    { label: "Converses actives", value: chatThreads.length, icon: MessageCircle },
+// Depèn de dades en viu de Supabase: no es pot prerenderitzar.
+export const dynamic = "force-dynamic";
+
+const AVATAR_COLORS = [
+  "#1E51A4",
+  "#7c3aed",
+  "#e11d48",
+  "#059669",
+  "#d97706",
+  "#0891b2",
+  "#4338ca",
+  "#be123c",
+];
+
+export default async function AdminPanellPage() {
+  const configured = isAdminConfigured();
+
+  if (!configured) {
+    return (
+      <div>
+        <PageHeader
+          title="Panell de control"
+          description="Visió general de l'escola ARK#ÈDIA."
+        />
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="flex items-start gap-3 p-4 text-sm text-amber-800">
+            <AlertTriangle className="size-5 shrink-0" />
+            <div>
+              <p className="font-bold">Falta configurar la connexió d&apos;administració</p>
+              <p className="mt-1">
+                Defineix <code>SUPABASE_SERVICE_ROLE_KEY</code> a les variables
+                d&apos;entorn perquè el panell pugui llegir dades reals de
+                Supabase. Consulta el README.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const [stats, teachers] = await Promise.all([getAdminStats(), getAllTeachers()]);
+
+  const statCards = [
+    { label: "Professors", value: stats.teachers, icon: Music4 },
+    { label: "Alumnes", value: stats.students, icon: GraduationCap },
+    { label: "Classes / setmana", value: stats.schedules, icon: CalendarDays },
+    { label: "Usuaris totals", value: stats.users, icon: Users },
   ];
 
   return (
     <div>
       <PageHeader
         title="Panell de control"
-        description="Visió general de l'escola ARK#ÈDIA."
+        description="Visió general de l'escola ARK#ÈDIA — dades reals de Supabase."
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {stats.map((s) => (
+        {statCards.map((s) => (
           <Card key={s.label}>
             <CardContent className="p-4">
               <s.icon className="size-5 text-arkedia-blue" />
@@ -41,26 +85,38 @@ export default function AdminPanellPage() {
         Professorat
       </h2>
       <div className="grid gap-2.5 sm:grid-cols-2">
-        {teachers.map((t) => (
+        {teachers.map((t, i) => (
           <Card key={t.id}>
             <CardContent className="flex items-center gap-3 p-4">
               <div
                 className="flex size-10 shrink-0 items-center justify-center rounded-full font-bold text-white"
-                style={{ backgroundColor: t.avatarColor }}
+                style={{ backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
               >
-                {t.nom[0]}
+                {t.firstName[0]}
               </div>
               <div className="min-w-0">
                 <p className="truncate font-semibold">
-                  {t.nom} {t.cognoms}
+                  {t.firstName} {t.lastName}
                 </p>
                 <p className="truncate text-xs text-muted">
-                  {t.instruments.join(" · ")}
+                  {t.instruments.length > 0 ? t.instruments.join(" · ") : "Sense instrument assignat"}
                 </p>
               </div>
             </CardContent>
           </Card>
         ))}
+
+        {teachers.length === 0 && (
+          <Card className="sm:col-span-2">
+            <CardContent className="p-6 text-center text-sm text-muted">
+              Encara no hi ha professorat donat d&apos;alta.{" "}
+              <Link href="/admin/usuaris" className="font-semibold text-arkedia-blue">
+                Afegeix-ne un
+              </Link>{" "}
+              o importa&apos;ls des d&apos;un CSV.
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Link

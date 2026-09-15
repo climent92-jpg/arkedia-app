@@ -1,0 +1,120 @@
+import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isAdminConfigured } from "@/lib/supabase/config";
+import type { AdminStudentRow, AdminTeacherRow, AdminUserRow } from "@/types";
+
+// Sense tipus generats de Supabase, el client tipa qualsevol relació
+// incrustada (per FK) com un array encara que sigui a un únic registre.
+// Aquest helper n'extreu l'email tant si arriba com a objecte com si arriba
+// com a array.
+function extractLinkedEmail(relation: unknown): string | null {
+  if (!relation) return null;
+  const row = Array.isArray(relation) ? relation[0] : relation;
+  return (row as { email?: string } | undefined)?.email ?? null;
+}
+
+// Funcions de lectura per als Server Components del panell d'administració.
+// Fan servir el client amb la service role (es salten RLS): només es criden
+// des de pàgines ja protegides per requireRole("admin") al layout.
+
+export async function getAllUsers(): Promise<AdminUserRow[]> {
+  if (!isAdminConfigured()) return [];
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, role, full_name, email, phone, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((u) => ({
+    id: u.id,
+    role: u.role,
+    fullName: u.full_name,
+    email: u.email,
+    phone: u.phone,
+    createdAt: u.created_at,
+  }));
+}
+
+export async function getAllTeachers(): Promise<AdminTeacherRow[]> {
+  if (!isAdminConfigured()) return [];
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("teachers")
+    .select("id, user_id, first_name, last_name, email, instruments, bio, users(email)")
+    .order("first_name", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((t) => ({
+    id: t.id,
+    userId: t.user_id,
+    firstName: t.first_name,
+    lastName: t.last_name,
+    email: t.email,
+    instruments: t.instruments ?? [],
+    bio: t.bio,
+    linkedUserEmail: extractLinkedEmail(t.users),
+  }));
+}
+
+export async function getAllStudents(): Promise<AdminStudentRow[]> {
+  if (!isAdminConfigured()) return [];
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("students")
+    .select(
+      "id, family_user_id, first_name, last_name, course, father_name, father_email, father_phone, mother_name, mother_email, mother_phone, notes, users(email)"
+    )
+    .order("first_name", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((s) => ({
+    id: s.id,
+    familyUserId: s.family_user_id,
+    firstName: s.first_name,
+    lastName: s.last_name,
+    course: s.course,
+    fatherName: s.father_name,
+    fatherEmail: s.father_email,
+    fatherPhone: s.father_phone,
+    motherName: s.mother_name,
+    motherEmail: s.mother_email,
+    motherPhone: s.mother_phone,
+    notes: s.notes,
+    linkedUserEmail: extractLinkedEmail(s.users),
+  }));
+}
+
+export interface AdminStats {
+  teachers: number;
+  students: number;
+  schedules: number;
+  users: number;
+}
+
+export async function getAdminStats(): Promise<AdminStats> {
+  if (!isAdminConfigured()) {
+    return { teachers: 0, students: 0, schedules: 0, users: 0 };
+  }
+
+  const supabase = createAdminClient();
+  const [teachers, students, schedules, users] = await Promise.all([
+    supabase.from("teachers").select("id", { count: "exact", head: true }),
+    supabase.from("students").select("id", { count: "exact", head: true }),
+    supabase.from("schedules").select("id", { count: "exact", head: true }),
+    supabase.from("users").select("id", { count: "exact", head: true }),
+  ]);
+
+  return {
+    teachers: teachers.count ?? 0,
+    students: students.count ?? 0,
+    schedules: schedules.count ?? 0,
+    users: users.count ?? 0,
+  };
+}

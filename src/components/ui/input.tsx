@@ -39,4 +39,18 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   );
 }
 
-export { Input, Label, Textarea };
+function Select({ className, ...props }: React.ComponentProps<"select">) {
+  return (
+    <select
+      className={cn(
+        "h-11 w-full rounded-xl border border-border bg-surface px-3.5 text-sm",
+        "outline-none focus:border-arkedia-blue focus:ring-2 focus:ring-arkedia-blue/20",
+        "disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+export { Input, Label, Textarea, Select };

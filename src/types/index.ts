@@ -119,3 +119,43 @@ export interface Announcement {
 }
 
 export type UserRole = "familia" | "professor" | "admin";
+
+// ---------------------------------------------------------------------------
+// Tipus de les taules reals de Supabase, tal com es fan servir al panell
+// d'administració (independents dels tipus de dades de mostra de dalt).
+// ---------------------------------------------------------------------------
+export interface AdminUserRow {
+  id: string;
+  role: UserRole;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  createdAt: string;
+}
+
+export interface AdminTeacherRow {
+  id: string;
+  userId: string | null;
+  firstName: string;
+  lastName: string;
+  email: string;
+  instruments: string[];
+  bio: string | null;
+  linkedUserEmail: string | null;
+}
+
+export interface AdminStudentRow {
+  id: string;
+  familyUserId: string | null;
+  firstName: string;
+  lastName: string;
+  course: string | null;
+  fatherName: string | null;
+  fatherEmail: string | null;
+  fatherPhone: string | null;
+  motherName: string | null;
+  motherEmail: string | null;
+  motherPhone: string | null;
+  notes: string | null;
+  linkedUserEmail: string | null;
+}

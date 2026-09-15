@@ -207,5 +207,56 @@ create policy "students_select_teacher" on public.students
     )
   );
 
--- Els admins (role = 'admin' a public.users) tenen accés total via policies
--- addicionals que comproven public.users.role = 'admin' per a cada taula.
+-- ----------------------------------------------------------------------------
+-- Accés total per a administradors.
+--
+-- El panell d'administració (/admin) fa servir el client amb la service
+-- role key (SUPABASE_SERVICE_ROLE_KEY), que es salta RLS del tot — així que
+-- aquestes policies NO calen perquè el panell funcioni. Es defineixen igualment
+-- com a defensa en profunditat, per si mai s'hi accedeix amb el client normal
+-- (anon/authenticated) autenticat com a admin.
+-- ----------------------------------------------------------------------------
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.users where id = auth.uid() and role = 'admin'
+  );
+$$;
+
+alter table public.teachers enable row level security;
+alter table public.student_teachers enable row level security;
+
+create policy "admin_all_users" on public.users
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_teachers" on public.teachers
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_students" on public.students
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_student_teachers" on public.student_teachers
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_schedules" on public.schedules
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_assignments" on public.assignments
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_materials" on public.materials
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_submitted_videos" on public.submitted_videos
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_messages" on public.messages
+  for all using (public.is_admin()) with check (public.is_admin());
+
+create policy "admin_all_announcements" on public.announcements
+  for all using (public.is_admin()) with check (public.is_admin());

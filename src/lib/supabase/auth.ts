@@ -53,3 +53,16 @@ export async function requireRole(role: UserRole): Promise<AuthProfile> {
 
   return profile;
 }
+
+// Per a les Server Actions del panell d'administració: en lloc de
+// redirigir, llança un error que l'acció converteix en { success: false }
+// perquè la UI el pugui mostrar sense trencar la pàgina.
+export async function requireAdminProfile(): Promise<AuthProfile> {
+  const profile = await getCurrentProfile();
+
+  if (!profile || profile.role !== "admin") {
+    throw new Error("No autoritzat: cal ser administrador.");
+  }
+
+  return profile;
+}

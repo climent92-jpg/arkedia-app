@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Papa from "papaparse";
 import {
   AlertTriangle,
@@ -20,15 +20,17 @@ import {
   parseImportRows,
   type ImportedRow,
 } from "@/lib/csv-import";
+import { importScheduleRows, type ImportSummary } from "./actions";
 
 export default function AdminImportadorPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<ImportedRow[]>([]);
-  const [imported, setImported] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
 
   function handleFile(file: File) {
     setFileName(file.name);
-    setImported(false);
+    setSummary(null);
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
@@ -52,7 +54,7 @@ export default function AdminImportadorPage() {
 
   function loadRealSample() {
     setFileName("horari-real-noelia.csv (exemple)");
-    setImported(false);
+    setSummary(null);
     Papa.parse<Record<string, string>>(REAL_SAMPLE_CSV, {
       header: true,
       skipEmptyLines: true,
@@ -61,6 +63,14 @@ export default function AdminImportadorPage() {
         const mapping = detectColumnMapping(headers);
         setRows(parseImportRows(results.data, mapping));
       },
+    });
+  }
+
+  function runImport() {
+    setSummary(null);
+    startTransition(async () => {
+      const result = await importScheduleRows(rows);
+      setSummary(result);
     });
   }
 
@@ -167,26 +177,51 @@ export default function AdminImportadorPage() {
             </table>
           </div>
 
-          <div className="mt-5 flex items-center gap-3">
-            <Button disabled={validRows.length === 0} onClick={() => setImported(true)}>
+          <p className="mt-3 text-xs text-muted">
+            L&apos;instrument de cada classe s&apos;agafa del professor/a (si només en
+            té un assignat); revisa-ho manualment a &ldquo;Gestió d&apos;usuaris&rdquo; si cal.
+          </p>
+
+          <div className="mt-3 flex items-center gap-3">
+            <Button disabled={validRows.length === 0 || pending} onClick={runImport}>
               <FileSpreadsheet className="size-4" />
-              Importar {validRows.length} files
+              {pending ? "Important..." : `Importar ${validRows.length} files`}
             </Button>
-            {imported && (
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
-                <CheckCircle2 className="size-4" />
-                Importat correctament (demo)
-              </span>
-            )}
           </div>
 
-          {imported && (
+          {summary && !summary.success && (
+            <Card className="mt-4 border-red-200 bg-red-50">
+              <CardContent className="p-4 text-sm text-red-700">{summary.error}</CardContent>
+            </Card>
+          )}
+
+          {summary?.success && (
             <Card className="mt-4 border-emerald-200 bg-emerald-50">
-              <CardContent className="p-4 text-sm text-emerald-800">
-                S&apos;han creat/actualitzat <strong>{validRows.length}</strong> classes,
-                amb els alumnes i les dades de contacte corresponents. Un cop
-                connectat Supabase, aquesta acció escriurà directament a les
-                taules <code>students</code> i <code>schedules</code>.
+              <CardContent className="flex flex-col gap-2 p-4 text-sm text-emerald-800">
+                <p className="flex items-center gap-1.5 font-semibold">
+                  <CheckCircle2 className="size-4" />
+                  Importació completada
+                </p>
+                <ul className="list-disc pl-5">
+                  <li>{summary.createdSchedules} classes noves a l&apos;horari</li>
+                  <li>{summary.createdStudents} alumnes nous</li>
+                  <li>{summary.createdTeachers} professors nous</li>
+                  {summary.skippedSchedules > 0 && (
+                    <li>{summary.skippedSchedules} classes ja existents (ignorades)</li>
+                  )}
+                </ul>
+                {summary.rowErrors.length > 0 && (
+                  <div className="mt-1 rounded-lg bg-white/70 p-2.5 text-xs text-red-700">
+                    <p className="font-semibold">
+                      {summary.rowErrors.length} fila(es) amb error:
+                    </p>
+                    <ul className="mt-1 list-disc pl-4">
+                      {summary.rowErrors.map((e, i) => (
+                        <li key={i}>{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
