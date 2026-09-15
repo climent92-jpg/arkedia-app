@@ -341,11 +341,34 @@ export interface StudentInput {
   motherEmail?: string;
   motherPhone?: string;
   notes?: string;
+  teacherIds: string[];
   accessMode: AccessMode;
   existingUserId?: string;
   password?: string;
   accessEmail?: string;
   accessFullName?: string;
+}
+
+// Substitueix del tot les relacions student_teachers d'un alumne pel
+// conjunt seleccionat al formulari (esborra i torna a inserir).
+async function syncStudentTeachers(
+  admin: ReturnType<typeof createAdminClient>,
+  studentId: string,
+  teacherIds: string[]
+): Promise<string | null> {
+  const { error: deleteError } = await admin
+    .from("student_teachers")
+    .delete()
+    .eq("student_id", studentId);
+  if (deleteError) return deleteError.message;
+
+  if (teacherIds.length === 0) return null;
+
+  const { error: insertError } = await admin
+    .from("student_teachers")
+    .insert(teacherIds.map((teacherId) => ({ student_id: studentId, teacher_id: teacherId })));
+
+  return insertError?.message ?? null;
 }
 
 export async function createStudent(input: StudentInput): Promise<ActionResult> {
@@ -371,21 +394,28 @@ export async function createStudent(input: StudentInput): Promise<ActionResult> 
   });
   if ("error" in resolved) return fail(resolved.error);
 
-  const { error } = await admin.from("students").insert({
-    family_user_id: resolved.userId,
-    first_name: input.firstName.trim(),
-    last_name: input.lastName.trim(),
-    course: input.course?.trim() || null,
-    father_name: input.fatherName?.trim() || null,
-    father_email: input.fatherEmail?.trim() || null,
-    father_phone: input.fatherPhone?.trim() || null,
-    mother_name: input.motherName?.trim() || null,
-    mother_email: input.motherEmail?.trim() || null,
-    mother_phone: input.motherPhone?.trim() || null,
-    notes: input.notes?.trim() || null,
-  });
+  const { data: inserted, error } = await admin
+    .from("students")
+    .insert({
+      family_user_id: resolved.userId,
+      first_name: input.firstName.trim(),
+      last_name: input.lastName.trim(),
+      course: input.course?.trim() || null,
+      father_name: input.fatherName?.trim() || null,
+      father_email: input.fatherEmail?.trim() || null,
+      father_phone: input.fatherPhone?.trim() || null,
+      mother_name: input.motherName?.trim() || null,
+      mother_email: input.motherEmail?.trim() || null,
+      mother_phone: input.motherPhone?.trim() || null,
+      notes: input.notes?.trim() || null,
+    })
+    .select("id")
+    .single();
 
-  if (error) return fail(error.message);
+  if (error || !inserted) return fail(error?.message ?? "No s'ha pogut crear l'alumne/a.");
+
+  const syncError = await syncStudentTeachers(admin, inserted.id, input.teacherIds);
+  if (syncError) return fail(syncError);
 
   revalidateAdmin();
   return ok({ tempPassword: resolved.tempPassword });
@@ -443,6 +473,9 @@ export async function updateStudent(
     .eq("id", id);
 
   if (error) return fail(error.message);
+
+  const syncError = await syncStudentTeachers(admin, id, input.teacherIds);
+  if (syncError) return fail(syncError);
 
   revalidateAdmin();
   return ok({ tempPassword });

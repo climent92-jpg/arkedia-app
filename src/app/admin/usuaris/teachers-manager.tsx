@@ -20,6 +20,7 @@ const INSTRUMENTS: Instrument[] = [
   "Violí",
   "Baix",
   "Ukelele",
+  "Saxòfon",
   "Llenguatge Musical",
 ];
 

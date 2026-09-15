@@ -260,3 +260,54 @@ create policy "admin_all_messages" on public.messages
 
 create policy "admin_all_announcements" on public.announcements
   for all using (public.is_admin()) with check (public.is_admin());
+
+-- ----------------------------------------------------------------------------
+-- Accés del professorat a les seves pròpies dades (portal /professor).
+-- Amb RLS activat, sense aquestes policies un professor no veuria res
+-- (ni tan sols la seva pròpia fitxa), encara que la consulta filtri
+-- correctament per teacher_id.
+-- ----------------------------------------------------------------------------
+create policy "teachers_select_own" on public.teachers
+  for select using (user_id = auth.uid());
+
+create policy "student_teachers_select_teacher" on public.student_teachers
+  for select using (
+    exists (
+      select 1 from public.teachers t
+      where t.id = student_teachers.teacher_id and t.user_id = auth.uid()
+    )
+  );
+
+create policy "schedules_select_teacher" on public.schedules
+  for select using (
+    exists (
+      select 1 from public.teachers t
+      where t.id = schedules.teacher_id and t.user_id = auth.uid()
+    )
+  );
+
+create policy "materials_select_teacher" on public.materials
+  for select using (
+    exists (
+      select 1 from public.teachers t
+      where t.id = materials.teacher_id and t.user_id = auth.uid()
+    )
+  );
+
+create policy "submitted_videos_select_teacher" on public.submitted_videos
+  for select using (
+    exists (
+      select 1 from public.teachers t
+      where t.id = submitted_videos.teacher_id and t.user_id = auth.uid()
+    )
+  );
+
+-- Perquè el professor pugui marcar un vídeo com a revisat i deixar-hi un
+-- comentari (des de /professor/material).
+create policy "submitted_videos_update_teacher" on public.submitted_videos
+  for update using (
+    exists (
+      select 1 from public.teachers t
+      where t.id = submitted_videos.teacher_id and t.user_id = auth.uid()
+    )
+  );

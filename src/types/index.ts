@@ -6,6 +6,7 @@ export type Instrument =
   | "Violí"
   | "Baix"
   | "Ukelele"
+  | "Saxòfon"
   | "Llenguatge Musical";
 
 export type Modalitat = "Individual" | "Parelles" | "Col·lectiva";
@@ -109,14 +110,6 @@ export interface ChatThread {
   nonLlegits: number;
 }
 
-export interface Announcement {
-  id: string;
-  titol: string;
-  cos: string;
-  destinataris: "tothom" | "professors" | "families";
-  data: string;
-  autor: string;
-}
 
 export type UserRole = "familia" | "professor" | "admin";
 
@@ -144,6 +137,15 @@ export interface AdminTeacherRow {
   linkedUserEmail: string | null;
 }
 
+export interface AdminAnnouncementRow {
+  id: string;
+  title: string;
+  body: string;
+  audience: "tothom" | "professors" | "families";
+  authorName: string | null;
+  createdAt: string;
+}
+
 export interface AdminStudentRow {
   id: string;
   familyUserId: string | null;
@@ -158,4 +160,63 @@ export interface AdminStudentRow {
   motherPhone: string | null;
   notes: string | null;
   linkedUserEmail: string | null;
+  teacherIds: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Dades reals per al portal de professorat (/professor), llegides amb el
+// client autenticat normal (RLS), filtrades pel professor connectat.
+// ---------------------------------------------------------------------------
+export interface MyTeacherProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  instruments: string[];
+}
+
+export interface ProfessorScheduleRow {
+  id: string;
+  weekday: DiaSetmana;
+  startTime: string;
+  endTime: string;
+  instrument: string;
+  modality: Modalitat;
+  room: string | null;
+  studentId: string;
+  studentFirstName: string;
+  studentLastName: string;
+  studentCourse: string | null;
+}
+
+export interface ProfessorStudentRow {
+  id: string;
+  firstName: string;
+  lastName: string;
+  course: string | null;
+  fatherName: string | null;
+  fatherEmail: string | null;
+  fatherPhone: string | null;
+  motherName: string | null;
+  motherEmail: string | null;
+  motherPhone: string | null;
+}
+
+export interface ProfessorMaterialRow {
+  id: string;
+  studentId: string | null;
+  studentName: string | null;
+  type: "partitura" | "video" | "audio";
+  title: string;
+  description: string | null;
+  createdAt: string;
+}
+
+export interface ProfessorSubmittedVideoRow {
+  id: string;
+  studentId: string;
+  studentName: string;
+  title: string;
+  reviewed: boolean;
+  teacherComment: string | null;
+  createdAt: string;
 }

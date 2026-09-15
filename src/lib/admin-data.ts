@@ -1,16 +1,32 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminConfigured } from "@/lib/supabase/config";
-import type { AdminStudentRow, AdminTeacherRow, AdminUserRow } from "@/types";
+import type {
+  AdminAnnouncementRow,
+  AdminStudentRow,
+  AdminTeacherRow,
+  AdminUserRow,
+} from "@/types";
 
 // Sense tipus generats de Supabase, el client tipa qualsevol relació
 // incrustada (per FK) com un array encara que sigui a un únic registre.
-// Aquest helper n'extreu l'email tant si arriba com a objecte com si arriba
+// Aquest helper n'extreu un camp tant si arriba com a objecte com si arriba
 // com a array.
-function extractLinkedEmail(relation: unknown): string | null {
+function extractRelationField<K extends string>(
+  relation: unknown,
+  field: K
+): string | null {
   if (!relation) return null;
   const row = Array.isArray(relation) ? relation[0] : relation;
-  return (row as { email?: string } | undefined)?.email ?? null;
+  return (row as Record<K, string> | undefined)?.[field] ?? null;
+}
+
+function extractLinkedEmail(relation: unknown): string | null {
+  return extractRelationField(relation, "email");
+}
+
+function extractLinkedFullName(relation: unknown): string | null {
+  return extractRelationField(relation, "full_name");
 }
 
 // Funcions de lectura per als Server Components del panell d'administració.
@@ -68,7 +84,7 @@ export async function getAllStudents(): Promise<AdminStudentRow[]> {
   const { data, error } = await supabase
     .from("students")
     .select(
-      "id, family_user_id, first_name, last_name, course, father_name, father_email, father_phone, mother_name, mother_email, mother_phone, notes, users(email)"
+      "id, family_user_id, first_name, last_name, course, father_name, father_email, father_phone, mother_name, mother_email, mother_phone, notes, users(email), student_teachers(teacher_id)"
     )
     .order("first_name", { ascending: true });
 
@@ -88,6 +104,30 @@ export async function getAllStudents(): Promise<AdminStudentRow[]> {
     motherPhone: s.mother_phone,
     notes: s.notes,
     linkedUserEmail: extractLinkedEmail(s.users),
+    teacherIds: ((s.student_teachers ?? []) as { teacher_id: string }[]).map(
+      (st) => st.teacher_id
+    ),
+  }));
+}
+
+export async function getAllAnnouncements(): Promise<AdminAnnouncementRow[]> {
+  if (!isAdminConfigured()) return [];
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("announcements")
+    .select("id, title, body, audience, created_at, users(full_name)")
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((a) => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    audience: a.audience,
+    authorName: extractLinkedFullName(a.users),
+    createdAt: a.created_at,
   }));
 }
 

@@ -11,7 +11,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Field, FormError, TempPasswordBanner } from "./users-manager";
 import { AccessFields } from "./teachers-manager";
 import { createStudent, deleteStudent, updateStudent, type AccessMode } from "./actions";
-import type { AdminStudentRow, AdminUserRow } from "@/types";
+import type { AdminStudentRow, AdminTeacherRow, AdminUserRow } from "@/types";
 
 interface FormState {
   id?: string;
@@ -25,6 +25,7 @@ interface FormState {
   motherEmail: string;
   motherPhone: string;
   notes: string;
+  teacherIds: string[];
   accessMode: AccessMode;
   existingUserId: string;
   password: string;
@@ -43,6 +44,7 @@ function emptyForm(): FormState {
     motherEmail: "",
     motherPhone: "",
     notes: "",
+    teacherIds: [],
     accessMode: "none",
     existingUserId: "",
     password: "",
@@ -53,9 +55,11 @@ function emptyForm(): FormState {
 export function StudentsManager({
   initialStudents,
   availableUsers,
+  availableTeachers,
 }: {
   initialStudents: AdminStudentRow[];
   availableUsers: AdminUserRow[];
+  availableTeachers: AdminTeacherRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -87,6 +91,7 @@ export function StudentsManager({
       motherEmail: s.motherEmail ?? "",
       motherPhone: s.motherPhone ?? "",
       notes: s.notes ?? "",
+      teacherIds: s.teacherIds,
       accessMode: s.familyUserId ? "existing" : "none",
       existingUserId: s.familyUserId ?? "",
       password: "",
@@ -94,6 +99,15 @@ export function StudentsManager({
     });
     setError(null);
     setOpen(true);
+  }
+
+  function toggleTeacher(teacherId: string) {
+    setForm((f) => ({
+      ...f,
+      teacherIds: f.teacherIds.includes(teacherId)
+        ? f.teacherIds.filter((id) => id !== teacherId)
+        : [...f.teacherIds, teacherId],
+    }));
   }
 
   function submit() {
@@ -109,6 +123,7 @@ export function StudentsManager({
       motherEmail: form.motherEmail,
       motherPhone: form.motherPhone,
       notes: form.notes,
+      teacherIds: form.teacherIds,
       accessMode: form.accessMode,
       existingUserId: form.existingUserId || undefined,
       password: form.password || undefined,
@@ -192,6 +207,31 @@ export function StudentsManager({
                   onChange={(e) => setForm((f) => ({ ...f, course: e.target.value }))}
                   placeholder="Ex: 5è EPRI"
                 />
+              </Field>
+
+              <Field label="Professors assignats">
+                {availableTeachers.length === 0 ? (
+                  <p className="text-xs text-muted">
+                    Encara no hi ha cap professor/a donat d&apos;alta.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableTeachers.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => toggleTeacher(t.id)}
+                        className={
+                          form.teacherIds.includes(t.id)
+                            ? "rounded-full bg-arkedia-blue px-3 py-1.5 text-xs font-semibold text-white"
+                            : "rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted hover:border-arkedia-blue hover:text-arkedia-blue"
+                        }
+                      >
+                        {t.firstName} {t.lastName}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </Field>
 
               <div className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-2">
@@ -285,6 +325,20 @@ export function StudentsManager({
                   {[s.motherEmail, s.fatherEmail].filter(Boolean).join(" · ") ||
                     "Sense contacte"}
                 </p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {s.teacherIds.map((teacherId) => {
+                    const t = availableTeachers.find((at) => at.id === teacherId);
+                    if (!t) return null;
+                    return (
+                      <Badge key={teacherId} variant="outline">
+                        {t.firstName} {t.lastName}
+                      </Badge>
+                    );
+                  })}
+                  {s.teacherIds.length === 0 && (
+                    <span className="text-xs text-muted">Sense professor assignat</span>
+                  )}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <button

@@ -1,5 +1,4 @@
 import type {
-  Announcement,
   Assignment,
   ChatMessage,
   ChatThread,
@@ -328,25 +327,6 @@ export const chatMessages: ChatMessage[] = [
     autorNom: "Noelia",
     text: "Perfecte, gràcies per l'explicació!",
     data: "2026-09-13T18:22:00",
-  },
-];
-
-export const announcements: Announcement[] = [
-  {
-    id: "an-1",
-    titol: "Audició de Nadal",
-    cos: "L'audició de Nadal serà el 18 de desembre a les 18:00 a la sala principal. Us hi esperem a tots!",
-    destinataris: "tothom",
-    data: "2026-09-10",
-    autor: "Direcció ARK#ÈDIA",
-  },
-  {
-    id: "an-2",
-    titol: "Canvi d'horari - setmana del 22 de setembre",
-    cos: "Per festivitat local, les classes de dilluns es traslladen a dimarts la mateixa setmana.",
-    destinataris: "families",
-    data: "2026-09-12",
-    autor: "Secretaria",
   },
 ];
 

@@ -67,7 +67,11 @@ export default async function AdminUsuarisPage() {
         </TabsContent>
 
         <TabsContent value="alumnes">
-          <StudentsManager initialStudents={students} availableUsers={users} />
+          <StudentsManager
+            initialStudents={students}
+            availableUsers={users}
+            availableTeachers={teachers}
+          />
         </TabsContent>
       </Tabs>
     </div>

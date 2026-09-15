@@ -30,10 +30,12 @@ mostra un avís i no deixa iniciar sessió — i tampoc es pot accedir a cap
 portal directament per URL, ja que el middleware (`src/proxy.ts`) redirigeix
 `/familia`, `/professor` i `/admin` a `/login` sense sessió vàlida.
 
-El **panell d'administració** (`/admin`) ja llegeix i escriu dades reals de
-Supabase (usuaris, professors, alumnes, horaris). Els portals de família i
-professorat encara mostren dades de mostra (`src/lib/mock-data.ts`) —
-connectar-los a les taules reals és el següent pas natural.
+El **panell d'administració** (`/admin`, avisos inclosos) i el **portal de
+professorat** (agenda, alumnes i material a `/professor`) ja llegeixen i
+escriuen dades reals de Supabase, filtrades pel professor connectat. Només
+el **portal de família** i `/professor/deures` i `/professor/xat` encara
+mostren dades de mostra (`src/lib/mock-data.ts`) — connectar-los a les
+taules reals és el següent pas natural.
 
 Per provar-ho com a PWA al mòbil: obre l'adreça amb Chrome/Safari des del
 mateix Wi-Fi que l'ordinador (`npm run dev -- -H 0.0.0.0` i usa la IP local)
@@ -46,27 +48,31 @@ src/
   app/
     page.tsx              Redirigeix a /login o al portal segons la sessió
     login/page.tsx          Formulari de login real (Supabase Auth)
-    familia/               Portal de família (horari, deures, material, xat)
-    professor/              Portal de professorat (agenda, alumnes, deures, material, xat)
+    familia/               Portal de família (horari, deures, material, xat — mostra)
+    professor/              Portal de professorat: agenda/alumnes/material (reals),
+                              deures i xat (encara mostra)
     admin/                 Portal d'administració (panell, importador, usuaris, avisos)
     manifest.ts            Manifest de la PWA
   components/
-    ui/                    Components base (botó, targeta, pestanyes...)
+    ui/                    Components base (botó, targeta, pestanyes, diàleg...)
     app-shell.tsx           Navegació (barra lateral a escriptori, barra inferior a mòbil)
     chat-thread.tsx          Xat família <-> professor
     video-player.tsx         Reproductor de vídeo
     upload-video.tsx          Pujada de vídeo de l'alumne
   lib/
-    mock-data.ts            Dades de mostra (família/professor, encara no connectades)
+    mock-data.ts            Dades de mostra (família i deures/xat de professor)
     admin-data.ts            Lectures reals de Supabase per al panell d'admin
+    professor-data.ts         Lectures reals per al portal de professorat (amb RLS)
     csv-import.ts            Parseig del CSV (encara no escriu a la BD)
     supabase/                Clients de Supabase (navegador, servidor, middleware, admin)
-    supabase/auth.ts          getCurrentProfile() / requireRole() / requireAdminProfile()
+    supabase/auth.ts          getCurrentProfile() / requireRole() / requireProfile()
     supabase/admin.ts         Client amb la service role key (només servidor)
   types/                    Tipus TypeScript compartits
   proxy.ts                  Middleware: protegeix /familia, /professor, /admin
-  app/admin/usuaris/actions.ts    Server Actions: CRUD d'usuaris/professors/alumnes
-  app/admin/importador/actions.ts Server Action: importa el CSV a Supabase
+  app/admin/usuaris/actions.ts       Server Actions: CRUD d'usuaris/professors/alumnes
+  app/admin/avisos/actions.ts        Server Actions: CRUD d'avisos
+  app/admin/importador/actions.ts    Server Action: importa el CSV a Supabase
+  app/professor/material/actions.ts  Server Action: marcar un vídeo com a revisat
 supabase/
   schema.sql                Esquema complet de la base de dades (SQL) + RLS d'admin
 ```
@@ -81,8 +87,10 @@ supabase/
    (Noelia, Griselda, Joana, Sol, Manel, Pablo, Dalibor, Marc).
 4. **Portal de família** — horari, deures, partitures, vídeos del
    professor, pujada de vídeo propi i xat.
-5. **Portal de professorat** — agenda, fitxa d'alumnes, assignació de
-   deures, pujada de material, revisió de vídeos, xat (dades de mostra).
+5. **Portal de professorat** — agenda, fitxa d'alumnes i material/revisió
+   de vídeos **connectats a Supabase** (filtrats pel professor autenticat,
+   amb pantalla buida real si no té classes/alumnes/material); deures i
+   xat encara amb dades de mostra.
 6. **Autenticació real i protecció de rutes** — login amb Supabase Auth
    (`src/components/login-form.tsx`), sense mode demo. El middleware
    (`src/proxy.ts` + `src/lib/supabase/middleware.ts`) i els layouts dels
@@ -102,9 +110,18 @@ supabase/
      insereix els professors, alumnes i horaris que falten directament a
      Supabase (`student_teachers` i `schedules` inclosos), evitant
      duplicats si es torna a importar el mateix full.
-   - **Panell i llistats sense dades fictícies**: `/admin` i
-     `/admin/usuaris` només mostren el que hi ha realment a les taules
-     `users`, `teachers` i `students`.
+   - **Panell i llistats sense dades fictícies**: `/admin`, `/admin/usuaris`
+     i `/admin/avisos` només mostren el que hi ha realment a les taules
+     `users`, `teachers`, `students` i `announcements`.
+   - **Avisos i comunicats** (`/admin/avisos`) amb CRUD real (crear,
+     editar i eliminar) sobre `public.announcements`.
+   - Al formulari d'alumne pots **assignar-li un o diversos professors**
+     (es desa a `student_teachers`), a banda de l'accés a la web.
+8. **Portal de professorat connectat** — `/professor` (agenda),
+   `/professor/alumnes` i `/professor/material` fan consultes reals amb el
+   client autenticat normal (respecten RLS: un professor només veu les
+   seves pròpies dades), i marquen un vídeo enviat com a revisat de debò
+   (`src/app/professor/material/actions.ts`).
 
 ## Connectar Supabase (obligatori per iniciar sessió)
 
@@ -138,11 +155,14 @@ supabase/
 6. Ja pots iniciar sessió a `http://localhost:3000/login` amb aquest compte
    — et portarà automàticament al portal que correspongui al seu `role`.
 7. Ja pots gestionar l'escola des de `/admin/usuaris`: crear professors i
-   alumnes, donar-los accés a la web (o vincular-los a un usuari existent),
-   i canviar rols. **Següent pas**: substitueix progressivament les crides
-   a `src/lib/mock-data.ts` (portals de família i professorat) per
-   consultes reals amb `createClient()` de `src/lib/supabase/client.ts`
-   (client) o `src/lib/supabase/server.ts` (Server Components).
+   alumnes, assignar-los professors, donar-los accés a la web (o
+   vincular-los a un usuari existent), i canviar rols. Si inicies sessió
+   com a `professor` i tens una fitxa vinculada amb alumnes assignats,
+   `/professor` ja mostrarà la teva agenda, alumnes i material reals.
+   **Següent pas**: connecta el portal de família i `/professor/deures` +
+   `/professor/xat` (encara `src/lib/mock-data.ts`) amb `createClient()`
+   de `src/lib/supabase/client.ts` (client) o `src/lib/supabase/server.ts`
+   (Server Components).
 
 ## Gestió d'usuaris (`/admin/usuaris`)
 
@@ -186,3 +206,31 @@ En prémer **"Importar"**, la Server Action `importScheduleRows`
 L'instrument de cada classe s'agafa automàticament del professor quan
 només en té un assignat; si en té diversos (o cap), queda com "Pendent
 d'especificar" i cal ajustar-lo manualment.
+
+## Avisos i comunicats (`/admin/avisos`)
+
+CRUD complet sobre `public.announcements`: crear, editar i eliminar avisos,
+amb destinataris (Tothom / Professorat / Famílies). Sense cap avís
+d'exemple — la llista només mostra el que s'ha publicat de debò.
+
+## Portal de professorat connectat (`/professor`)
+
+`/professor` (agenda), `/professor/alumnes` i `/professor/material` ja no
+fan servir `mock-data.ts`: consulten Supabase amb el client autenticat
+normal (`src/lib/professor-data.ts`), filtrant sempre pel `teacher_id`
+vinculat a l'usuari connectat. Per això calen les policies RLS
+"..._select_teacher" de `supabase/schema.sql` — sense elles, un professor
+no veuria res encara que la consulta ja filtri correctament.
+
+- Si el compte del professor no té cap fila a `public.teachers` vinculada
+  (`teachers.user_id`), les tres pàgines mostren un avís clar en lloc de
+  dades falses.
+- Si té fitxa però encara no té classes, alumnes o material assignats,
+  mostren una pantalla buida real ("Encara no tens..."), mai els 11
+  alumnes ficticis d'abans.
+- A "Vídeos alumnes" (`/professor/material`), marcar un vídeo com a
+  revisat i escriure-hi un comentari ja escriu a `public.submitted_videos`
+  de debò. Pujar material nou des d'aquí encara no és possible — requereix
+  connectar Supabase Storage, indicat com a properament a la pròpia pàgina.
+- `/professor/deures` i `/professor/xat` **no** s'han tocat en aquesta
+  ronda: continuen amb dades de mostra.

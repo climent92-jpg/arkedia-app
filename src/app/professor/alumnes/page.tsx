@@ -2,11 +2,28 @@ import { Mail, Phone } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { DEMO_TEACHER_ID } from "@/lib/demo-session";
-import { scheduleForTeacher, studentsForTeacher } from "@/lib/mock-data";
+import { getMySchedule, getMyStudents, getMyTeacherProfile } from "@/lib/professor-data";
+import { NoTeacherProfile } from "@/app/professor/page";
 
-export default function ProfessorAlumnesPage() {
-  const alumnes = studentsForTeacher(DEMO_TEACHER_ID);
+// Depèn de la sessió i de dades en viu de Supabase: no es pot prerenderitzar.
+export const dynamic = "force-dynamic";
+
+export default async function ProfessorAlumnesPage() {
+  const teacher = await getMyTeacherProfile();
+
+  if (!teacher) {
+    return (
+      <div>
+        <PageHeader title="Els meus alumnes" />
+        <NoTeacherProfile />
+      </div>
+    );
+  }
+
+  const [alumnes, schedule] = await Promise.all([
+    getMyStudents(teacher.id),
+    getMySchedule(teacher.id),
+  ]);
 
   return (
     <div>
@@ -17,32 +34,44 @@ export default function ProfessorAlumnesPage() {
 
       <div className="flex flex-col gap-3">
         {alumnes.map((s) => {
-          const classes = scheduleForTeacher(DEMO_TEACHER_ID).filter((e) =>
-            e.studentIds.includes(s.id)
-          );
+          const classes = schedule.filter((e) => e.studentId === s.id);
           return (
             <Card key={s.id}>
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-bold">
-                      {s.nom} {s.cognoms}
+                      {s.firstName} {s.lastName}
                     </p>
-                    <p className="text-sm text-muted">{s.curs}</p>
+                    <p className="text-sm text-muted">{s.course}</p>
                   </div>
                   <div className="flex flex-wrap justify-end gap-1.5">
                     {classes.map((c) => (
                       <Badge key={c.id} variant="outline">
-                        {c.dia.slice(0, 3)} {c.horaInici}
+                        {c.weekday.slice(0, 3)} {c.startTime.slice(0, 5)}
                       </Badge>
                     ))}
                   </div>
                 </div>
 
                 <div className="mt-3 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
-                  {s.pare && <ContactRow label="Pare" contact={s.pare} />}
-                  {s.mare && <ContactRow label="Mare" contact={s.mare} />}
-                  {!s.pare && !s.mare && (
+                  {s.fatherName || s.fatherEmail || s.fatherPhone ? (
+                    <ContactRow
+                      label="Pare"
+                      name={s.fatherName}
+                      email={s.fatherEmail}
+                      phone={s.fatherPhone}
+                    />
+                  ) : null}
+                  {s.motherName || s.motherEmail || s.motherPhone ? (
+                    <ContactRow
+                      label="Mare"
+                      name={s.motherName}
+                      email={s.motherEmail}
+                      phone={s.motherPhone}
+                    />
+                  ) : null}
+                  {!s.fatherEmail && !s.fatherPhone && !s.motherEmail && !s.motherPhone && (
                     <p className="text-xs text-muted sm:col-span-2">
                       Contacte pendent d&apos;importar.
                     </p>
@@ -56,7 +85,8 @@ export default function ProfessorAlumnesPage() {
         {alumnes.length === 0 && (
           <Card>
             <CardContent className="p-6 text-center text-sm text-muted">
-              Encara no tens alumnes assignats.
+              Encara no tens alumnes assignats. Un administrador te&apos;ls pot
+              assignar des de &ldquo;Gestió d&apos;usuaris&rdquo;.
             </CardContent>
           </Card>
         )}
@@ -67,33 +97,32 @@ export default function ProfessorAlumnesPage() {
 
 function ContactRow({
   label,
-  contact,
+  name,
+  email,
+  phone,
 }: {
   label: string;
-  contact: { nom?: string; email?: string; telefon?: string };
+  name: string | null;
+  email: string | null;
+  phone: string | null;
 }) {
   return (
     <div className="rounded-lg bg-black/[0.02] p-2.5">
-      <p className="text-xs font-bold uppercase tracking-wide text-muted">
-        {label}
-      </p>
-      <p className="text-sm font-semibold">{contact.nom}</p>
-      {contact.email && (
+      <p className="text-xs font-bold uppercase tracking-wide text-muted">{label}</p>
+      {name && <p className="text-sm font-semibold">{name}</p>}
+      {email && (
         <a
-          href={`mailto:${contact.email}`}
+          href={`mailto:${email}`}
           className="flex items-center gap-1.5 text-xs text-arkedia-blue"
         >
           <Mail className="size-3" />
-          {contact.email}
+          {email}
         </a>
       )}
-      {contact.telefon && (
-        <a
-          href={`tel:${contact.telefon}`}
-          className="flex items-center gap-1.5 text-xs text-muted"
-        >
+      {phone && (
+        <a href={`tel:${phone}`} className="flex items-center gap-1.5 text-xs text-muted">
           <Phone className="size-3" />
-          {contact.telefon}
+          {phone}
         </a>
       )}
     </div>
