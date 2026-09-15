@@ -5,7 +5,7 @@ import { requireRole } from "@/lib/supabase/auth";
 // estàticament, o tothom veuria el mateix HTML congelat en build time.
 export const dynamic = "force-dynamic";
 
-export default async function FamiliaLayout({
+export default async function AlumneLayout({
   children,
 }: {
   children: React.ReactNode;

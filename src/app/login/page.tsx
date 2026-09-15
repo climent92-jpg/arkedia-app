@@ -4,6 +4,7 @@ import { Logo } from "@/components/logo";
 import { LoginForm } from "@/components/login-form";
 import { Card, CardContent } from "@/components/ui/card";
 import { getCurrentProfile } from "@/lib/supabase/auth";
+import { ROLE_HOME } from "@/lib/nav-config";
 
 // Depèn de la cookie de sessió de cada petició (per redirigir l'usuari ja
 // autenticat al seu portal): no es pot prerenderitzar estàticament.
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   const profile = await getCurrentProfile();
-  if (profile) redirect(`/${profile.role}`);
+  if (profile) redirect(ROLE_HOME[profile.role]);
 
   return (
     <div className="flex min-h-dvh flex-col bg-arkedia-blue">

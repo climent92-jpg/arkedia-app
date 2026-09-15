@@ -1,9 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { ROLE_HOME } from "@/lib/nav-config";
 import type { UserRole } from "@/types";
 
 const PROTECTED_ROLE_BY_PREFIX: Record<string, UserRole> = {
-  "/familia": "familia",
+  "/alumne": "familia",
   "/professor": "professor",
   "/admin": "admin",
 };
@@ -28,7 +29,7 @@ function redirectTo(request: NextRequest, pathname: string, keepNext = false) {
 }
 
 // Refresca la sessió de Supabase Auth a cada petició i bloqueja l'accés als
-// portals (/familia, /professor, /admin) sense sessió vàlida o amb el rol
+// portals (/alumne, /professor, /admin) sense sessió vàlida o amb el rol
 // equivocat. Es crida des de src/proxy.ts.
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -85,7 +86,7 @@ export async function updateSession(request: NextRequest) {
       return redirectTo(request, "/login");
     }
     if (profile.role !== requiredRole) {
-      return redirectTo(request, `/${profile.role}`);
+      return redirectTo(request, ROLE_HOME[profile.role as UserRole]);
     }
   } else if (pathname === "/login" && user) {
     // Ja ha iniciat sessió i visita el login: el portem al seu portal.
@@ -95,7 +96,7 @@ export async function updateSession(request: NextRequest) {
       .eq("id", user.id)
       .single();
     if (profile) {
-      return redirectTo(request, `/${profile.role}`);
+      return redirectTo(request, ROLE_HOME[profile.role as UserRole]);
     }
   }
 

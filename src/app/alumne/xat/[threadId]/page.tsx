@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function ProfessorXatThreadPage({
+export default async function AlumneXatThreadPage({
   params,
 }: {
   params: Promise<{ threadId: string }>;
@@ -21,18 +21,18 @@ export default async function ProfessorXatThreadPage({
   if (!thread) notFound();
 
   const supabase = await createClient();
-  const { data: student } = await supabase
-    .from("students")
-    .select("first_name, last_name")
-    .eq("id", thread.student_id)
+  const { data: teacher } = await supabase
+    .from("teachers")
+    .select("first_name, last_name, instruments")
+    .eq("id", thread.teacher_id)
     .maybeSingle();
 
-  const messages = await getThreadMessages(threadId, profile.id, "professor");
+  const messages = await getThreadMessages(threadId, profile.id, "familia");
 
   return (
     <div>
       <Link
-        href="/professor/xat"
+        href="/alumne/xat"
         className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-arkedia-blue"
       >
         <ChevronLeft className="size-4" />
@@ -41,12 +41,14 @@ export default async function ProfessorXatThreadPage({
       <ChatThread
         threadId={threadId}
         initialMessages={messages}
-        currentAuthor="professor"
+        currentAuthor="familia"
         currentAuthorName={profile.fullName}
         otherName={
-          student
-            ? `Família ${student.last_name.split(" ")[0]} (${student.first_name})`
-            : "Família"
+          teacher
+            ? `${teacher.first_name} ${teacher.last_name}${
+                teacher.instruments?.[0] ? " · " + teacher.instruments[0] : ""
+              }`
+            : "Professor/a"
         }
       />
     </div>

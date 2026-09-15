@@ -17,12 +17,23 @@ export interface NavItem {
   icon: LucideIcon;
 }
 
+// Ruta base de cada rol. El rol tal com es desa a Supabase (public.users.role)
+// es manté com a "familia" (no migrem l'enum de la base de dades), però
+// l'aplicació ja no fa servir mai "/familia" com a URL: el portal de
+// l'alumnat viu a "/alumne". Fes servir sempre ROLE_HOME en lloc de construir
+// una ruta amb `/${role}`.
+export const ROLE_HOME: Record<UserRole, string> = {
+  familia: "/alumne",
+  professor: "/professor",
+  admin: "/admin",
+};
+
 export const navByRole: Record<UserRole, NavItem[]> = {
   familia: [
-    { href: "/familia", label: "Horari", icon: CalendarDays },
-    { href: "/familia/deures", label: "Deures", icon: CheckSquare },
-    { href: "/familia/material", label: "Material", icon: FolderOpen },
-    { href: "/familia/xat", label: "Xat", icon: MessageCircle },
+    { href: "/alumne/agenda", label: "Agenda", icon: CalendarDays },
+    { href: "/alumne/deures", label: "Deures", icon: CheckSquare },
+    { href: "/alumne/material", label: "Material", icon: FolderOpen },
+    { href: "/alumne/xat", label: "Xat", icon: MessageCircle },
   ],
   professor: [
     { href: "/professor", label: "Agenda", icon: CalendarDays },
@@ -34,13 +45,14 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   admin: [
     { href: "/admin", label: "Panell", icon: LayoutDashboard },
     { href: "/admin/importador", label: "Importador", icon: UploadCloud },
+    { href: "/admin/horaris", label: "Horaris", icon: CalendarDays },
     { href: "/admin/usuaris", label: "Usuaris", icon: Users },
     { href: "/admin/avisos", label: "Avisos", icon: Megaphone },
   ],
 };
 
 export const roleLabel: Record<UserRole, string> = {
-  familia: "Família",
+  familia: "Alumne",
   professor: "Professor/a",
   admin: "Administració",
 };

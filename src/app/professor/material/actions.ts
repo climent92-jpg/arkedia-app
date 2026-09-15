@@ -28,6 +28,9 @@ export async function updateSubmittedVideoReview(
     return { success: false, error: "El teu compte no té cap fitxa de professor vinculada." };
   }
 
+  // No filtrem per teacher_id: la policy RLS "submitted_videos_update_teacher"
+  // ja permet actuar a qualsevol professor assignat a l'alumne via
+  // student_teachers, encara que el vídeo s'hagués adreçat a un altre.
   const supabase = await createClient();
   const { error } = await supabase
     .from("submitted_videos")
@@ -35,11 +38,58 @@ export async function updateSubmittedVideoReview(
       reviewed: input.reviewed,
       teacher_comment: input.teacherComment.trim() || null,
     })
-    .eq("id", videoId)
-    .eq("teacher_id", teacher.id);
+    .eq("id", videoId);
 
   if (error) return { success: false, error: error.message };
 
   revalidatePath("/professor/material");
+  return { success: true };
+}
+
+export interface MaterialInput {
+  target: "student" | "all";
+  studentId?: string;
+  type: "partitura" | "video" | "audio";
+  title: string;
+  description?: string;
+  storagePath: string;
+}
+
+// Desa la fila de materials després que el navegador hagi pujat el fitxer a
+// Supabase Storage (bucket "materials"). target "all" (student_id null) el
+// fa visible a tots els alumnes assignats a aquest professor.
+export async function createMaterial(input: MaterialInput): Promise<ActionResult> {
+  try {
+    await requireProfile("professor");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  const teacher = await getMyTeacherProfile();
+  if (!teacher) {
+    return { success: false, error: "El teu compte no té cap fitxa de professor vinculada." };
+  }
+
+  if (!input.title.trim() || !input.storagePath) {
+    return { success: false, error: "Falten dades del material." };
+  }
+  if (input.target === "student" && !input.studentId) {
+    return { success: false, error: "Selecciona un alumne." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("materials").insert({
+    student_id: input.target === "all" ? null : input.studentId,
+    teacher_id: teacher.id,
+    type: input.type,
+    title: input.title.trim(),
+    description: input.description?.trim() || null,
+    storage_path: input.storagePath,
+  });
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/professor/material");
+  revalidatePath("/alumne/material");
   return { success: true };
 }

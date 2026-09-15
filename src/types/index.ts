@@ -137,6 +137,22 @@ export interface AdminTeacherRow {
   linkedUserEmail: string | null;
 }
 
+export interface AdminScheduleRow {
+  id: string;
+  teacherId: string;
+  teacherFirstName: string;
+  teacherLastName: string;
+  studentId: string;
+  studentFirstName: string;
+  studentLastName: string;
+  weekday: DiaSetmana;
+  startTime: string;
+  endTime: string;
+  instrument: string;
+  modality: Modalitat;
+  room: string | null;
+}
+
 export interface AdminAnnouncementRow {
   id: string;
   title: string;
@@ -208,6 +224,7 @@ export interface ProfessorMaterialRow {
   type: "partitura" | "video" | "audio";
   title: string;
   description: string | null;
+  url: string | null;
   createdAt: string;
 }
 
@@ -216,7 +233,95 @@ export interface ProfessorSubmittedVideoRow {
   studentId: string;
   studentName: string;
   title: string;
+  studentNote: string | null;
   reviewed: boolean;
   teacherComment: string | null;
+  url: string | null;
   createdAt: string;
+}
+
+export interface ProfessorAssignmentRow {
+  id: string;
+  studentId: string;
+  studentFirstName: string;
+  studentLastName: string;
+  title: string;
+  description: string | null;
+  dueDate: string | null;
+  done: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Dades reals per al portal de l'alumne (/alumne), llegides amb el client
+// autenticat normal (RLS), filtrades per l'alumne/família connectat.
+// ---------------------------------------------------------------------------
+export interface MyStudentProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  course: string | null;
+}
+
+export interface StudentScheduleRow {
+  id: string;
+  weekday: DiaSetmana;
+  startTime: string;
+  endTime: string;
+  instrument: string;
+  modality: Modalitat;
+  room: string | null;
+  teacherId: string;
+  teacherFirstName: string;
+  teacherLastName: string;
+}
+
+export interface StudentTeacherRow {
+  id: string;
+  firstName: string;
+  lastName: string;
+  instruments: string[];
+}
+
+export interface StudentAssignmentRow {
+  id: string;
+  title: string;
+  description: string | null;
+  teacherFirstName: string;
+  dueDate: string | null;
+  done: boolean;
+}
+
+export interface StudentMaterialRow {
+  id: string;
+  type: "partitura" | "video" | "audio";
+  title: string;
+  description: string | null;
+  teacherFirstName: string;
+  teacherLastName: string;
+  url: string | null;
+}
+
+export interface StudentSubmittedVideoRow {
+  id: string;
+  title: string;
+  studentNote: string | null;
+  reviewed: boolean;
+  teacherComment: string | null;
+  url: string | null;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Xat (compartit entre /alumne/xat i /professor/xat).
+// ---------------------------------------------------------------------------
+export interface ChatThreadRow {
+  id: string;
+  studentId: string;
+  studentFirstName: string;
+  studentLastName: string;
+  teacherId: string;
+  teacherFirstName: string;
+  teacherLastName: string;
+  lastMessage: string | null;
+  lastMessageAt: string | null;
 }

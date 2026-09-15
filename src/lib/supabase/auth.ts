@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { ROLE_HOME } from "@/lib/nav-config";
 import type { UserRole } from "@/types";
 
 export interface AuthProfile {
@@ -48,7 +49,7 @@ export async function requireRole(role: UserRole): Promise<AuthProfile> {
     redirect("/login");
   }
   if (profile.role !== role) {
-    redirect(`/${profile.role}`);
+    redirect(ROLE_HOME[profile.role]);
   }
 
   return profile;
