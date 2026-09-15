@@ -1,32 +1,18 @@
-import Link from "next/link";
-import { GraduationCap, Music4, ShieldCheck } from "lucide-react";
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { Logo } from "@/components/logo";
-import { Button } from "@/components/ui/button";
+import { LoginForm } from "@/components/login-form";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input, Label } from "@/components/ui/input";
+import { getCurrentProfile } from "@/lib/supabase/auth";
 
-const demoAccess = [
-  {
-    href: "/familia",
-    icon: GraduationCap,
-    title: "Sóc família / alumne",
-    desc: "Horari, deures, partitures i vídeos",
-  },
-  {
-    href: "/professor",
-    icon: Music4,
-    title: "Sóc professor/a",
-    desc: "Agenda, alumnes i material",
-  },
-  {
-    href: "/admin",
-    icon: ShieldCheck,
-    title: "Sóc administració",
-    desc: "Gestió de l'escola i importador",
-  },
-];
+// Depèn de la cookie de sessió de cada petició (per redirigir l'usuari ja
+// autenticat al seu portal): no es pot prerenderitzar estàticament.
+export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home() {
+  const profile = await getCurrentProfile();
+  if (profile) redirect(`/${profile.role}`);
+
   return (
     <div className="flex min-h-dvh flex-col bg-arkedia-blue">
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 py-10">
@@ -42,47 +28,9 @@ export default function Home() {
                 </p>
               </div>
 
-              <form className="flex flex-col gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="email">Correu electrònic</Label>
-                  <Input id="email" type="email" placeholder="nom@exemple.com" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="password">Contrasenya</Label>
-                  <Input id="password" type="password" placeholder="••••••••" />
-                </div>
-                <Button type="submit" size="lg" className="mt-1 w-full">
-                  Entrar
-                </Button>
-              </form>
-
-              <div className="flex items-center gap-3 text-xs font-semibold text-muted">
-                <span className="h-px flex-1 bg-border" />
-                O prova una demo ràpida
-                <span className="h-px flex-1 bg-border" />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {demoAccess.map((d) => (
-                  <Link
-                    key={d.href}
-                    href={d.href}
-                    className="flex items-center gap-3 rounded-xl border border-border px-3.5 py-3 text-left transition-colors hover:border-arkedia-blue hover:bg-arkedia-blue-light"
-                  >
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-arkedia-blue-light text-arkedia-blue">
-                      <d.icon className="size-5" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-bold text-foreground">
-                        {d.title}
-                      </span>
-                      <span className="block truncate text-xs text-muted">
-                        {d.desc}
-                      </span>
-                    </span>
-                  </Link>
-                ))}
-              </div>
+              <Suspense fallback={null}>
+                <LoginForm />
+              </Suspense>
             </CardContent>
           </Card>
         </div>

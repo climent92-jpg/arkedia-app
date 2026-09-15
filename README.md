@@ -10,7 +10,8 @@ administració.
 - **Tailwind CSS v4** amb el tema visual d'ARK#ÈDIA (blau `#1E51A4`)
 - **Lucide React** per a les icones
 - **PWA**: instal·lable a mòbil i escriptori (`manifest.webmanifest` + service worker)
-- **Supabase** (preparat, no connectat): PostgreSQL, Auth i Storage
+- **Supabase Auth**: login real per correu/contrasenya, obligatori per a
+  tots els portals (sense sessió vàlida no es pot veure cap pantalla)
 
 ## Executar en local
 
@@ -19,10 +20,19 @@ npm install
 npm run dev
 ```
 
-Obre <http://localhost:3000>. A la pantalla d'inici tens tres botons de
-"demo ràpida" per entrar directament a cada portal (família, professor,
-administració) sense necessitat de contrasenya, ja que encara funciona amb
-dades de mostra (`src/lib/mock-data.ts`).
+Obre <http://localhost:3000>. Hi trobaràs el formulari de login real: **no
+hi ha cap accés directe ni mode demo**. Per entrar necessites un compte creat
+a Supabase Auth amb una fila corresponent a `public.users` (vegeu
+["Connectar Supabase"](#connectar-supabase-obligatori-per-iniciar-sessió) més
+avall). Sense les variables d'entorn de Supabase configurades, el formulari
+mostra un avís i no deixa iniciar sessió — i tampoc es pot accedir a cap
+portal directament per URL, ja que el middleware (`src/proxy.ts`) bloqueja
+`/familia`, `/professor` i `/admin` sense sessió vàlida.
+
+El contingut de dins de cada portal (horari, deures, materials...) encara
+prové de dades de mostra (`src/lib/mock-data.ts`) — només la porta d'entrada
+(autenticació) és real; connectar cada pantalla a les taules de Supabase és
+el següent pas natural.
 
 Per provar-ho com a PWA al mòbil: obre l'adreça amb Chrome/Safari des del
 mateix Wi-Fi que l'ordinador (`npm run dev -- -H 0.0.0.0` i usa la IP local)
@@ -48,7 +58,9 @@ src/
     mock-data.ts            Dades de mostra (professorat i horaris reals d'ARK#ÈDIA)
     csv-import.ts            Lògica de l'importador d'Excel/CSV
     supabase/                Clients de Supabase (navegador, servidor, middleware)
+    supabase/auth.ts          getCurrentProfile() / requireRole() (Server Components)
   types/                    Tipus TypeScript compartits
+  proxy.ts                  Middleware: protegeix /familia, /professor, /admin
 supabase/
   schema.sql                Esquema complet de la base de dades (SQL)
 ```
@@ -67,10 +79,14 @@ supabase/
    assignació de deures, pujada de material, revisió de vídeos, xat,
    panell de control, **importador d'Excel/CSV** (amb un botó per provar-lo
    amb l'horari real de la Noelia) i gestor d'usuaris/avisos.
-6. **Connexió a Supabase** — clients preparats (`src/lib/supabase`), encara
-   sense activar (l'app funciona 100% amb dades de mostra).
+6. **Autenticació real i protecció de rutes** — login amb Supabase Auth
+   (`src/components/login-form.tsx`), sense mode demo. El middleware
+   (`src/proxy.ts` + `src/lib/supabase/middleware.ts`) i els layouts dels
+   portals (`src/lib/supabase/auth.ts` → `requireRole()`) bloquegen l'accés
+   a qui no tingui sessió vàlida o tingui un rol diferent del portal que
+   visita.
 
-## Connectar Supabase (quan vulguis passar a producció)
+## Connectar Supabase (obligatori per iniciar sessió)
 
 1. Crea un projecte a [supabase.com](https://supabase.com).
 2. Al **SQL Editor** del projecte, enganxa i executa `supabase/schema.sql`.
@@ -78,11 +94,26 @@ supabase/
    professor) i `submitted-videos` (vídeos dels alumnes).
 4. Copia `.env.local.example` a `.env.local` i omple `NEXT_PUBLIC_SUPABASE_URL`
    i `NEXT_PUBLIC_SUPABASE_ANON_KEY` (a Settings → API del projecte).
-5. Substitueix progressivament les crides a `src/lib/mock-data.ts` per
-   consultes amb `createClient()` de `src/lib/supabase/client.ts` (client) o
-   `src/lib/supabase/server.ts` (Server Components).
-6. Activa l'autenticació per correu/contrasenya a Supabase Auth i connecta
-   el formulari de `src/app/page.tsx`.
+   Reinicia `npm run dev` perquè les llegeixi.
+5. **Crea el primer usuari** (per exemple, un administrador):
+   - A **Authentication → Users** del projecte, clica "Add user" i crea'l
+     amb correu i contrasenya.
+   - Copia el seu `UID`.
+   - Al **SQL Editor**, insereix la seva fila de perfil:
+     ```sql
+     insert into public.users (id, role, full_name, email)
+     values ('<UID copiat>', 'admin', 'Direcció ARK#ÈDIA', 'direccio@arkedia.cat');
+     ```
+     (usa `'familia'` o `'professor'` com a `role` per als altres tipus
+     d'usuari). Sense aquesta fila, el login funciona però l'app no sap a
+     quin portal enviar l'usuari i el bloqueja amb un avís.
+6. Ja pots iniciar sessió a `http://localhost:3000` amb aquest compte —
+   et portarà automàticament al portal que correspongui al seu `role`.
+7. **Següent pas**: substitueix progressivament les crides a
+   `src/lib/mock-data.ts` per consultes reals amb `createClient()` de
+   `src/lib/supabase/client.ts` (client) o `src/lib/supabase/server.ts`
+   (Server Components), perquè cada portal mostri les dades del propi
+   usuari autenticat en lloc de les dades d'exemple.
 
 ## Importador d'horaris (Excel/CSV)
 
