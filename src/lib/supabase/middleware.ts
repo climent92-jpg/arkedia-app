@@ -41,7 +41,7 @@ export async function updateSession(request: NextRequest) {
     // Sense Supabase configurat no hi ha manera d'autenticar-se: mai deixem
     // passar cap accés directe als portals.
     if (requiredRole) {
-      return redirectTo(request, "/", true);
+      return redirectTo(request, "/login", true);
     }
     return NextResponse.next({ request });
   }
@@ -71,7 +71,7 @@ export async function updateSession(request: NextRequest) {
 
   if (requiredRole) {
     if (!user) {
-      return redirectTo(request, "/", true);
+      return redirectTo(request, "/login", true);
     }
 
     const { data: profile } = await supabase
@@ -82,12 +82,12 @@ export async function updateSession(request: NextRequest) {
 
     if (!profile) {
       // Sessió vàlida però encara sense fila a public.users: no assignat.
-      return redirectTo(request, "/");
+      return redirectTo(request, "/login");
     }
     if (profile.role !== requiredRole) {
       return redirectTo(request, `/${profile.role}`);
     }
-  } else if (pathname === "/" && user) {
+  } else if (pathname === "/login" && user) {
     // Ja ha iniciat sessió i visita el login: el portem al seu portal.
     const { data: profile } = await supabase
       .from("users")

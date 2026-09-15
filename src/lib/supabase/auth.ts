@@ -45,7 +45,7 @@ export async function requireRole(role: UserRole): Promise<AuthProfile> {
   const profile = await getCurrentProfile();
 
   if (!profile) {
-    redirect("/");
+    redirect("/login");
   }
   if (profile.role !== role) {
     redirect(`/${profile.role}`);

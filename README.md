@@ -20,14 +20,15 @@ npm install
 npm run dev
 ```
 
-Obre <http://localhost:3000>. Hi trobaràs el formulari de login real: **no
-hi ha cap accés directe ni mode demo**. Per entrar necessites un compte creat
-a Supabase Auth amb una fila corresponent a `public.users` (vegeu
+Obre <http://localhost:3000> — et redirigirà a `/login`, on trobaràs el
+formulari de login real: **no hi ha cap accés directe ni mode demo**. Per
+entrar necessites un compte creat a Supabase Auth amb una fila corresponent
+a `public.users` (vegeu
 ["Connectar Supabase"](#connectar-supabase-obligatori-per-iniciar-sessió) més
 avall). Sense les variables d'entorn de Supabase configurades, el formulari
 mostra un avís i no deixa iniciar sessió — i tampoc es pot accedir a cap
-portal directament per URL, ja que el middleware (`src/proxy.ts`) bloqueja
-`/familia`, `/professor` i `/admin` sense sessió vàlida.
+portal directament per URL, ja que el middleware (`src/proxy.ts`) redirigeix
+`/familia`, `/professor` i `/admin` a `/login` sense sessió vàlida.
 
 El contingut de dins de cada portal (horari, deures, materials...) encara
 prové de dades de mostra (`src/lib/mock-data.ts`) — només la porta d'entrada
@@ -43,7 +44,8 @@ i selecciona "Afegir a la pantalla d'inici".
 ```
 src/
   app/
-    page.tsx              Pantalla d'inici / login
+    page.tsx              Redirigeix a /login o al portal segons la sessió
+    login/page.tsx          Formulari de login real (Supabase Auth)
     familia/               Portal de família (horari, deures, material, xat)
     professor/              Portal de professorat (agenda, alumnes, deures, material, xat)
     admin/                 Portal d'administració (panell, importador, usuaris, avisos)
@@ -107,8 +109,8 @@ supabase/
      (usa `'familia'` o `'professor'` com a `role` per als altres tipus
      d'usuari). Sense aquesta fila, el login funciona però l'app no sap a
      quin portal enviar l'usuari i el bloqueja amb un avís.
-6. Ja pots iniciar sessió a `http://localhost:3000` amb aquest compte —
-   et portarà automàticament al portal que correspongui al seu `role`.
+6. Ja pots iniciar sessió a `http://localhost:3000/login` amb aquest compte
+   — et portarà automàticament al portal que correspongui al seu `role`.
 7. **Següent pas**: substitueix progressivament les crides a
    `src/lib/mock-data.ts` per consultes reals amb `createClient()` de
    `src/lib/supabase/client.ts` (client) o `src/lib/supabase/server.ts`
