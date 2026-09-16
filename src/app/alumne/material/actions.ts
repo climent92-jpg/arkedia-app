@@ -11,7 +11,7 @@ export interface ActionResult {
 }
 
 // Desa la fila de submitted_videos després que el navegador hagi pujat el
-// fitxer a Supabase Storage (bucket "submitted-videos"). Només crea la fila:
+// fitxer a Supabase Storage (bucket "submitted_videos"). Només crea la fila:
 // requireix que storagePath ja existeixi al bucket sota la carpeta del propi
 // alumne, tal com exigeix la policy submitted_videos_storage_insert_family.
 // teacherId és opcional: si l'alumne encara no té cap professor assignat, es
@@ -76,7 +76,7 @@ export async function deleteSubmittedVideo(videoId: string): Promise<ActionResul
   if (error) return { success: false, error: error.message };
 
   if (video?.storage_path) {
-    await supabase.storage.from("submitted-videos").remove([video.storage_path]);
+    await supabase.storage.from("submitted_videos").remove([video.storage_path]);
   }
 
   revalidatePath("/alumne/material");

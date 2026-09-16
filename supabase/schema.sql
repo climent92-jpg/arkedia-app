@@ -116,6 +116,10 @@ create table if not exists public.assignments (
   assigned_at date not null default current_date,
   due_date date,
   done boolean not null default false,
+  requires_video boolean not null default false, -- el professor demana un vídeo de resposta
+  submission_video_path text, -- ex: "<student_id>/<uuid>-<filename>" al bucket submitted_videos
+  submission_note text, -- nota opcional de l'alumne en entregar el vídeo
+  submitted_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -263,6 +267,10 @@ alter table public.assignments
   add column if not exists assigned_at date not null default current_date,
   add column if not exists due_date date,
   add column if not exists done boolean not null default false,
+  add column if not exists requires_video boolean not null default false,
+  add column if not exists submission_video_path text,
+  add column if not exists submission_note text,
+  add column if not exists submitted_at timestamptz,
   add column if not exists created_at timestamptz not null default now();
 
 alter table public.materials
@@ -760,7 +768,7 @@ values ('materials', 'materials', false, 209715200)
 on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('submitted-videos', 'submitted-videos', false, 209715200)
+values ('submitted_videos', 'submitted_videos', false, 209715200)
 on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
 -- Convenció de camins: "materials/<teacher_id>/<fitxer>" — el professor
@@ -818,13 +826,13 @@ create policy "materials_storage_select_participant" on storage.objects
     )
   );
 
--- Convenció de camins: "submitted-videos/<student_id>/<fitxer>" — la família
+-- Convenció de camins: "submitted_videos/<student_id>/<fitxer>" — la família
 -- de l'alumne hi puja i en pot llegir; qualsevol professor assignat a
 -- l'alumne (via student_teachers) també en pot llegir.
 drop policy if exists "submitted_videos_storage_insert_family" on storage.objects;
 create policy "submitted_videos_storage_insert_family" on storage.objects
   for insert with check (
-    bucket_id = 'submitted-videos'
+    bucket_id = 'submitted_videos'
     and exists (
       select 1 from public.students s
       where s.id::text = (storage.foldername(name))[1] and s.family_user_id = auth.uid()
@@ -834,7 +842,7 @@ create policy "submitted_videos_storage_insert_family" on storage.objects
 drop policy if exists "submitted_videos_storage_delete_participant" on storage.objects;
 create policy "submitted_videos_storage_delete_participant" on storage.objects
   for delete using (
-    bucket_id = 'submitted-videos'
+    bucket_id = 'submitted_videos'
     and (
       exists (
         select 1 from public.students s
@@ -851,7 +859,7 @@ create policy "submitted_videos_storage_delete_participant" on storage.objects
 drop policy if exists "submitted_videos_storage_select_participant" on storage.objects;
 create policy "submitted_videos_storage_select_participant" on storage.objects
   for select using (
-    bucket_id = 'submitted-videos'
+    bucket_id = 'submitted_videos'
     and (
       public.is_admin()
       or exists (

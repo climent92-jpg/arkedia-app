@@ -110,23 +110,32 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("assignments")
-    .select("id, title, description, due_date, done, teachers(first_name)")
+    .select(
+      "id, title, description, due_date, done, requires_video, submission_video_path, submission_note, teachers(first_name)"
+    )
     .eq("student_id", studentId)
     .order("created_at", { ascending: false });
 
   if (error || !data) return [];
 
-  return data.map((a) => {
-    const teacher = extractOne<{ first_name: string }>(a.teachers);
-    return {
-      id: a.id,
-      title: a.title,
-      description: a.description,
-      teacherFirstName: teacher?.first_name ?? "",
-      dueDate: a.due_date,
-      done: a.done,
-    };
-  });
+  return Promise.all(
+    data.map(async (a) => {
+      const teacher = extractOne<{ first_name: string }>(a.teachers);
+      return {
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        teacherFirstName: teacher?.first_name ?? "",
+        dueDate: a.due_date,
+        done: a.done,
+        requiresVideo: a.requires_video,
+        submissionVideoUrl: a.submission_video_path
+          ? await getSignedUrl(supabase, "submitted_videos", a.submission_video_path)
+          : null,
+        submissionNote: a.submission_note,
+      };
+    })
+  );
 }
 
 // Materials propis de l'alumne + materials generals (student_id null) dels
@@ -212,7 +221,7 @@ export async function getMySubmittedVideos(
       studentNote: v.student_note,
       reviewed: v.reviewed,
       teacherComment: v.teacher_comment,
-      url: await getSignedUrl(supabase, "submitted-videos", v.storage_path),
+      url: await getSignedUrl(supabase, "submitted_videos", v.storage_path),
       createdAt: v.created_at,
     }))
   );

@@ -15,6 +15,7 @@ export async function createAssignment(input: {
   title: string;
   description?: string;
   dueDate?: string;
+  requiresVideo?: boolean;
 }): Promise<ActionResult> {
   try {
     await requireProfile("professor");
@@ -38,6 +39,7 @@ export async function createAssignment(input: {
     title: input.title.trim(),
     description: input.description?.trim() || null,
     due_date: input.dueDate || null,
+    requires_video: input.requiresVideo ?? false,
   });
 
   if (error) return { success: false, error: error.message };
@@ -55,6 +57,7 @@ export async function updateAssignment(
     title: string;
     description?: string;
     dueDate?: string;
+    requiresVideo?: boolean;
   }
 ): Promise<ActionResult> {
   try {
@@ -75,6 +78,7 @@ export async function updateAssignment(
       title: input.title.trim(),
       description: input.description?.trim() || null,
       due_date: input.dueDate || null,
+      requires_video: input.requiresVideo ?? false,
     })
     .eq("id", assignmentId);
 

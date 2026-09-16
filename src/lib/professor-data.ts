@@ -196,7 +196,7 @@ export async function getMySubmittedVideos(
         studentNote: v.student_note,
         reviewed: v.reviewed,
         teacherComment: v.teacher_comment,
-        url: await getSignedUrl(supabase, "submitted-videos", v.storage_path),
+        url: await getSignedUrl(supabase, "submitted_videos", v.storage_path),
         createdAt: v.created_at,
       };
     })
@@ -230,24 +230,31 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
   const { data, error } = await supabase
     .from("assignments")
     .select(
-      "id, student_id, title, description, due_date, done, students(first_name, last_name)"
+      "id, student_id, title, description, due_date, done, requires_video, submission_video_path, submission_note, students(first_name, last_name)"
     )
     .eq("teacher_id", teacherId)
     .order("created_at", { ascending: false });
 
   if (error || !data) return [];
 
-  return data.map((a) => {
-    const student = extractOne<{ first_name: string; last_name: string }>(a.students);
-    return {
-      id: a.id,
-      studentId: a.student_id,
-      studentFirstName: student?.first_name ?? "",
-      studentLastName: student?.last_name ?? "",
-      title: a.title,
-      description: a.description,
-      dueDate: a.due_date,
-      done: a.done,
-    };
-  });
+  return Promise.all(
+    data.map(async (a) => {
+      const student = extractOne<{ first_name: string; last_name: string }>(a.students);
+      return {
+        id: a.id,
+        studentId: a.student_id,
+        studentFirstName: student?.first_name ?? "",
+        studentLastName: student?.last_name ?? "",
+        title: a.title,
+        description: a.description,
+        dueDate: a.due_date,
+        done: a.done,
+        requiresVideo: a.requires_video,
+        submissionVideoUrl: a.submission_video_path
+          ? await getSignedUrl(supabase, "submitted_videos", a.submission_video_path)
+          : null,
+        submissionNote: a.submission_note,
+      };
+    })
+  );
 }

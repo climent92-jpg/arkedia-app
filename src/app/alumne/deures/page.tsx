@@ -23,7 +23,7 @@ export default async function AlumneDeuresPage() {
   return (
     <div>
       <PageHeader title="Deures" description="El que cal practicar aquesta setmana." />
-      <DeuresList assignments={assignments} />
+      <DeuresList assignments={assignments} studentId={student.id} />
     </div>
   );
 }
