@@ -47,50 +47,47 @@ export function UploadVideo({
   }
 
   function submit() {
-    if (!file || !title.trim() || !teacherId) {
-      setError("Cal un títol i triar a quin professor/a l'envies.");
+    if (!file || !title.trim()) {
+      setError("Cal triar un vídeo i escriure un títol.");
       return;
     }
     setError(null);
 
     startTransition(async () => {
-      const uploaded = await uploadToStorage(
-        "submitted-videos",
-        student.id,
-        file,
-        "video/mp4"
-      );
-      if (uploaded.error || !uploaded.path) {
-        setError(uploaded.error ?? "No s'ha pogut pujar el vídeo.");
-        return;
+      try {
+        const uploaded = await uploadToStorage(
+          "submitted-videos",
+          student.id,
+          file,
+          "video/mp4"
+        );
+        if (uploaded.error || !uploaded.path) {
+          setError(uploaded.error ?? "No s'ha pogut pujar el vídeo.");
+          return;
+        }
+
+        const result = await submitVideo({
+          title,
+          note,
+          storagePath: uploaded.path,
+          teacherId: teacherId || undefined,
+        });
+
+        if (!result.success) {
+          setError(result.error ?? "No s'ha pogut enviar el vídeo.");
+          return;
+        }
+
+        setSent(true);
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Alguna cosa ha fallat en enviar el vídeo. Torna-ho a provar."
+        );
       }
-
-      const result = await submitVideo({
-        title,
-        note,
-        storagePath: uploaded.path,
-        teacherId,
-      });
-
-      if (!result.success) {
-        setError(result.error ?? "No s'ha pogut enviar el vídeo.");
-        return;
-      }
-
-      setSent(true);
-      router.refresh();
     });
-  }
-
-  if (teachers.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-center text-sm text-muted">
-          Encara no tens cap professor/a assignat, així que no pots enviar
-          vídeos. Demana a l&apos;administració que et vinculi un professor/a.
-        </CardContent>
-      </Card>
-    );
   }
 
   if (sent) {
@@ -98,9 +95,13 @@ export function UploadVideo({
       <Card className="border-emerald-200 bg-emerald-50">
         <CardContent className="flex flex-col items-center gap-2 p-8 text-center">
           <CheckCircle2 className="size-10 text-emerald-600" />
-          <p className="font-bold text-emerald-800">Vídeo enviat al professor/a!</p>
+          <p className="font-bold text-emerald-800">
+            {teachers.length === 0 ? "Vídeo desat!" : "Vídeo enviat al professor/a!"}
+          </p>
           <p className="text-sm text-emerald-700">
-            Rebràs una notificació quan el revisi.
+            {teachers.length === 0
+              ? "El podrà revisar el teu professor/a en el moment en què te l'assignin."
+              : "Rebràs una notificació quan el revisi."}
           </p>
           <Button variant="outline" size="sm" className="mt-2" onClick={reset}>
             Pujar-ne un altre
@@ -112,6 +113,13 @@ export function UploadVideo({
 
   return (
     <div className="flex flex-col gap-3">
+      {teachers.length === 0 && (
+        <p className="rounded-lg bg-arkedia-blue-light/50 px-3 py-2 text-xs text-arkedia-blue">
+          Encara no tens cap professor/a assignat: pots enviar el vídeo igualment i el
+          podrà revisar el professor/a que et vinculin més endavant.
+        </p>
+      )}
+
       {!file && (
         <button
           type="button"
@@ -206,7 +214,11 @@ export function UploadVideo({
             )}
 
             <Button onClick={submit} disabled={pending} className="mt-1">
-              {pending ? "Enviant..." : "Enviar al professor/a"}
+              {pending
+                ? "Enviant..."
+                : teachers.length === 0
+                  ? "Desar vídeo"
+                  : "Enviar al professor/a"}
             </Button>
           </CardContent>
         </Card>

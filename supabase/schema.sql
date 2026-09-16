@@ -151,7 +151,7 @@ create table if not exists public.materials (
 create table if not exists public.submitted_videos (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.students (id) on delete cascade,
-  teacher_id uuid not null references public.teachers (id) on delete cascade,
+  teacher_id uuid references public.teachers (id) on delete cascade, -- nul si l'alumne encara no té cap professor assignat
   title text not null,
   storage_path text not null, -- ex: "<student_id>/<uuid>-<filename>"
   student_note text, -- nota opcional de l'alumne en pujar el vídeo
@@ -284,6 +284,13 @@ alter table public.submitted_videos
   add column if not exists teacher_comment text,
   add column if not exists teacher_audio_comment_path text,
   add column if not exists created_at timestamptz not null default now();
+
+-- Un alumne pot enviar un vídeo abans de tenir cap professor assignat
+-- (l'admin l'hi assignarà més endavant); permetem teacher_id nul perquè la
+-- pujada no quedi bloquejada. La policy "submitted_videos_select_teacher" ja
+-- es basa en student_teachers, no en aquest camp, així que el vídeo
+-- apareixerà igualment al professor en el moment en què se li assigni.
+alter table public.submitted_videos alter column teacher_id drop not null;
 
 alter table public.message_threads
   add column if not exists student_id uuid references public.students (id) on delete cascade,
