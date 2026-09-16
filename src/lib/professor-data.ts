@@ -1,8 +1,10 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { getSignedUrl } from "@/lib/storage-signed-url";
 import type {
   MyTeacherProfile,
+  ProfessorAssignmentRow,
   ProfessorMaterialRow,
   ProfessorScheduleRow,
   ProfessorStudentRow,
@@ -130,50 +132,99 @@ export async function getMyMaterials(teacherId: string): Promise<ProfessorMateri
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("materials")
-    .select("id, student_id, type, title, description, created_at, students(first_name, last_name)")
-    .eq("teacher_id", teacherId)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-
-  return data.map((m) => {
-    const student = extractOne<{ first_name: string; last_name: string }>(m.students);
-    return {
-      id: m.id,
-      studentId: m.student_id,
-      studentName: student ? `${student.first_name} ${student.last_name}` : null,
-      type: m.type,
-      title: m.title,
-      description: m.description,
-      createdAt: m.created_at,
-    };
-  });
-}
-
-export async function getMySubmittedVideos(
-  teacherId: string
-): Promise<ProfessorSubmittedVideoRow[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("submitted_videos")
     .select(
-      "id, student_id, title, reviewed, teacher_comment, created_at, students(first_name, last_name)"
+      "id, student_id, type, title, description, storage_path, created_at, students(first_name, last_name)"
     )
     .eq("teacher_id", teacherId)
     .order("created_at", { ascending: false });
 
   if (error || !data) return [];
 
-  return data.map((v) => {
-    const student = extractOne<{ first_name: string; last_name: string }>(v.students);
+  return Promise.all(
+    data.map(async (m) => {
+      const student = extractOne<{ first_name: string; last_name: string }>(m.students);
+      return {
+        id: m.id,
+        studentId: m.student_id,
+        studentName: student ? `${student.first_name} ${student.last_name}` : null,
+        type: m.type,
+        title: m.title,
+        description: m.description,
+        url: await getSignedUrl(supabase, "materials", m.storage_path),
+        createdAt: m.created_at,
+      };
+    })
+  );
+}
+
+// Inclou els vídeos de TOTS els alumnes assignats a aquest professor via
+// student_teachers, encara que el vídeo s'hagi adreçat originalment a un
+// altre dels seus professors (la policy submitted_videos_select_teacher fa
+// el mateix filtre a nivell de base de dades).
+export async function getMySubmittedVideos(
+  teacherId: string
+): Promise<ProfessorSubmittedVideoRow[]> {
+  const supabase = await createClient();
+
+  const { data: links } = await supabase
+    .from("student_teachers")
+    .select("student_id")
+    .eq("teacher_id", teacherId);
+
+  const studentIds = (links ?? []).map((l) => l.student_id);
+  if (studentIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("submitted_videos")
+    .select(
+      "id, student_id, title, student_note, storage_path, reviewed, teacher_comment, created_at, students(first_name, last_name)"
+    )
+    .in("student_id", studentIds)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return Promise.all(
+    data.map(async (v) => {
+      const student = extractOne<{ first_name: string; last_name: string }>(v.students);
+      return {
+        id: v.id,
+        studentId: v.student_id,
+        studentName: student ? `${student.first_name} ${student.last_name}` : "Alumne",
+        title: v.title,
+        studentNote: v.student_note,
+        reviewed: v.reviewed,
+        teacherComment: v.teacher_comment,
+        url: await getSignedUrl(supabase, "submitted-videos", v.storage_path),
+        createdAt: v.created_at,
+      };
+    })
+  );
+}
+
+export async function getMyAssignments(teacherId: string): Promise<ProfessorAssignmentRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("assignments")
+    .select(
+      "id, student_id, title, description, due_date, done, students(first_name, last_name)"
+    )
+    .eq("teacher_id", teacherId)
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((a) => {
+    const student = extractOne<{ first_name: string; last_name: string }>(a.students);
     return {
-      id: v.id,
-      studentId: v.student_id,
-      studentName: student ? `${student.first_name} ${student.last_name}` : "Alumne",
-      title: v.title,
-      reviewed: v.reviewed,
-      teacherComment: v.teacher_comment,
-      createdAt: v.created_at,
+      id: a.id,
+      studentId: a.student_id,
+      studentFirstName: student?.first_name ?? "",
+      studentLastName: student?.last_name ?? "",
+      title: a.title,
+      description: a.description,
+      dueDate: a.due_date,
+      done: a.done,
     };
   });
 }

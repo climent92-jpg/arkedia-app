@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, KeyRound, Mail, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Copy, KeyRound, Mail, Pencil, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import type { AdminUserRow, UserRole } from "@/types";
 const ROLE_LABEL: Record<UserRole, string> = {
   admin: "Administració",
   professor: "Professor/a",
-  familia: "Família",
+  familia: "Alumne / Família",
 };
 
 interface FormState {
@@ -154,7 +154,7 @@ export function UsersManager({ initialUsers }: { initialUsers: AdminUserRow[] })
                     setForm((f) => ({ ...f, role: e.target.value as UserRole }))
                   }
                 >
-                  <option value="familia">Família</option>
+                  <option value="familia">Alumne / Família</option>
                   <option value="professor">Professor/a</option>
                   <option value="admin">Administració</option>
                 </Select>
@@ -280,35 +280,34 @@ export function TempPasswordBanner({
   }
 
   return (
-    <Card className="mb-4 border-emerald-200 bg-emerald-50">
-      <CardContent className="flex items-start gap-3 p-4">
-        <KeyRound className="size-5 shrink-0 text-emerald-700" />
-        <div className="min-w-0 flex-1">
-          <p className="font-bold text-emerald-900">Compte creat per a {email}</p>
-          <p className="text-sm text-emerald-800">
-            Comparteix-li aquesta contrasenya inicial (només es mostra ara):
-          </p>
-          <div className="mt-2 flex items-center gap-2">
-            <code className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-emerald-900">
-              {password}
-            </code>
-            <button
-              onClick={copy}
-              className="flex size-8 items-center justify-center rounded-lg text-emerald-700 hover:bg-emerald-100"
-              aria-label="Copiar"
-            >
-              {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-            </button>
+    <Dialog open onOpenChange={(isOpen) => !isOpen && onClose()}>
+      <DialogContent
+        title="Credencials creades"
+        description="Aquesta contrasenya només es mostra ara: copia-la i comparteix-la amb la persona per un canal segur."
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <KeyRound className="size-5 shrink-0 text-emerald-700" />
+            <div className="min-w-0 flex-1">
+              <p className="font-bold text-emerald-900">{email}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <code className="flex-1 truncate rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-emerald-900">
+                  {password}
+                </code>
+                <button
+                  onClick={copy}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-lg text-emerald-700 hover:bg-emerald-100"
+                  aria-label="Copiar contrasenya"
+                >
+                  {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+                </button>
+              </div>
+              {copied && <p className="mt-1 text-xs text-emerald-700">Copiada!</p>}
+            </div>
           </div>
+          <Button onClick={onClose}>Ja l&apos;he copiada</Button>
         </div>
-        <button
-          onClick={onClose}
-          className="flex size-7 shrink-0 items-center justify-center rounded-lg text-emerald-700 hover:bg-emerald-100"
-          aria-label="Tancar"
-        >
-          <X className="size-4" />
-        </button>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

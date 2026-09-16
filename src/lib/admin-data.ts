@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminConfigured } from "@/lib/supabase/config";
 import type {
   AdminAnnouncementRow,
+  AdminScheduleRow,
   AdminStudentRow,
   AdminTeacherRow,
   AdminUserRow,
@@ -27,6 +28,11 @@ function extractLinkedEmail(relation: unknown): string | null {
 
 function extractLinkedFullName(relation: unknown): string | null {
   return extractRelationField(relation, "full_name");
+}
+
+function extractOne<T>(relation: unknown): T | null {
+  if (!relation) return null;
+  return (Array.isArray(relation) ? relation[0] : relation) as T;
 }
 
 // Funcions de lectura per als Server Components del panell d'administració.
@@ -129,6 +135,41 @@ export async function getAllAnnouncements(): Promise<AdminAnnouncementRow[]> {
     authorName: extractLinkedFullName(a.users),
     createdAt: a.created_at,
   }));
+}
+
+export async function getAllSchedules(): Promise<AdminScheduleRow[]> {
+  if (!isAdminConfigured()) return [];
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("schedules")
+    .select(
+      "id, teacher_id, student_id, weekday, start_time, end_time, instrument, modality, room, teachers(first_name, last_name), students(first_name, last_name)"
+    )
+    .order("weekday", { ascending: true })
+    .order("start_time", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((s) => {
+    const teacher = extractOne<{ first_name: string; last_name: string }>(s.teachers);
+    const student = extractOne<{ first_name: string; last_name: string }>(s.students);
+    return {
+      id: s.id,
+      teacherId: s.teacher_id,
+      teacherFirstName: teacher?.first_name ?? "",
+      teacherLastName: teacher?.last_name ?? "",
+      studentId: s.student_id,
+      studentFirstName: student?.first_name ?? "",
+      studentLastName: student?.last_name ?? "",
+      weekday: s.weekday,
+      startTime: s.start_time,
+      endTime: s.end_time,
+      instrument: s.instrument,
+      modality: s.modality,
+      room: s.room,
+    };
+  });
 }
 
 export interface AdminStats {

@@ -4,13 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Logo, LogoMark } from "@/components/logo";
-import { navByRole, roleLabel } from "@/lib/nav-config";
+import { ROLE_HOME, navByRole, roleLabel } from "@/lib/nav-config";
 import { useSignOut } from "@/lib/use-sign-out";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types";
 
+const ROOT_HREFS = new Set(Object.values(ROLE_HOME));
+
 function isActive(pathname: string, href: string) {
-  if (href === "/familia" || href === "/professor" || href === "/admin") {
+  if (ROOT_HREFS.has(href)) {
     return pathname === href;
   }
   return pathname.startsWith(href);
@@ -34,7 +36,7 @@ export function AppShell({
       {/* Desktop sidebar */}
       <aside className="hidden md:flex md:w-64 md:flex-col md:border-r md:border-border md:bg-surface md:sticky md:top-0 md:h-dvh">
         <div className="p-6">
-          <Link href={`/${role}`}>
+          <Link href={ROLE_HOME[role]}>
             <Logo size="sm" />
           </Link>
         </div>

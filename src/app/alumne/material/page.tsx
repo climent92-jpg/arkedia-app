@@ -5,16 +5,37 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadVideo } from "@/components/upload-video";
 import { VideoPlayer } from "@/components/video-player";
-import { DEMO_STUDENT_ID } from "@/lib/demo-session";
-import { materialsForStudent, submittedVideos } from "@/lib/mock-data";
+import {
+  getMyMaterials,
+  getMyStudentProfile,
+  getMySubmittedVideos,
+  getMyTeachers,
+} from "@/lib/student-data";
+import { NoStudentProfile } from "@/app/alumne/agenda/page";
 
-export default function FamiliaMaterialPage() {
-  const materials = materialsForStudent(DEMO_STUDENT_ID);
-  const partitures = materials.filter((m) => m.tipus === "partitura");
-  const videosProf = materials.filter((m) => m.tipus === "video");
-  const meusVideos = submittedVideos.filter(
-    (v) => v.studentId === DEMO_STUDENT_ID
-  );
+// Depèn de la sessió i de dades en viu de Supabase: no es pot prerenderitzar.
+export const dynamic = "force-dynamic";
+
+export default async function AlumneMaterialPage() {
+  const student = await getMyStudentProfile();
+
+  if (!student) {
+    return (
+      <div>
+        <PageHeader title="Material" />
+        <NoStudentProfile />
+      </div>
+    );
+  }
+
+  const teachers = await getMyTeachers(student.id);
+  const [materials, submittedVideos] = await Promise.all([
+    getMyMaterials(student.id, teachers.map((t) => t.id)),
+    getMySubmittedVideos(student.id),
+  ]);
+
+  const partitures = materials.filter((m) => m.type === "partitura");
+  const videosProf = materials.filter((m) => m.type === "video");
 
   return (
     <div>
@@ -38,64 +59,78 @@ export default function FamiliaMaterialPage() {
                   <FileText className="size-5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{m.titol}</p>
-                  {m.descripcio && (
-                    <p className="truncate text-sm text-muted">{m.descripcio}</p>
+                  <p className="truncate font-semibold">{m.title}</p>
+                  {m.description && (
+                    <p className="truncate text-sm text-muted">{m.description}</p>
                   )}
+                  <p className="truncate text-xs text-muted">
+                    {m.teacherFirstName} {m.teacherLastName}
+                  </p>
                 </div>
-                <a
-                  href={m.url}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-lg text-arkedia-blue hover:bg-arkedia-blue-light"
-                  aria-label="Descarregar"
-                >
-                  <Download className="size-5" />
-                </a>
+                {m.url ? (
+                  <a
+                    href={m.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex size-9 shrink-0 items-center justify-center rounded-lg text-arkedia-blue hover:bg-arkedia-blue-light"
+                    aria-label="Descarregar"
+                  >
+                    <Download className="size-5" />
+                  </a>
+                ) : (
+                  <Download className="size-5 shrink-0 text-border" />
+                )}
               </CardContent>
             </Card>
           ))}
-          {partitures.length === 0 && <EmptyState text="Encara no hi ha partitures penjades." />}
+          {partitures.length === 0 && (
+            <EmptyState text="Encara no hi ha partitures penjades." />
+          )}
         </TabsContent>
 
         <TabsContent value="videos-prof" className="flex flex-col gap-4">
           {videosProf.map((m) => (
             <Card key={m.id}>
               <CardContent className="flex flex-col gap-2.5 p-4">
-                <VideoPlayer src={m.url} title={m.titol} />
+                <VideoPlayer src={m.url ?? "#"} title={m.title} />
                 <div>
-                  <p className="font-semibold">{m.titol}</p>
-                  {m.descripcio && (
-                    <p className="text-sm text-muted">{m.descripcio}</p>
-                  )}
+                  <p className="font-semibold">{m.title}</p>
+                  {m.description && <p className="text-sm text-muted">{m.description}</p>}
+                  <p className="text-xs text-muted">
+                    {m.teacherFirstName} {m.teacherLastName}
+                  </p>
                 </div>
               </CardContent>
             </Card>
           ))}
-          {videosProf.length === 0 && <EmptyState text="Encara no hi ha vídeos del professor." />}
+          {videosProf.length === 0 && (
+            <EmptyState text="Encara no hi ha vídeos del professor." />
+          )}
         </TabsContent>
 
         <TabsContent value="meu-video" className="flex flex-col gap-4">
-          <UploadVideo />
+          <UploadVideo student={student} teachers={teachers} />
 
-          {meusVideos.length > 0 && (
+          {submittedVideos.length > 0 && (
             <div>
               <h2 className="mb-2 mt-2 text-sm font-bold uppercase tracking-wide text-muted">
                 Vídeos enviats
               </h2>
               <div className="flex flex-col gap-3">
-                {meusVideos.map((v) => (
+                {submittedVideos.map((v) => (
                   <Card key={v.id}>
                     <CardContent className="flex flex-col gap-2.5 p-4">
-                      <VideoPlayer src={v.url} title={v.titol} />
+                      <VideoPlayer src={v.url ?? "#"} title={v.title} />
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold">{v.titol}</p>
-                        <Badge variant={v.revisat ? "success" : "warning"}>
-                          {v.revisat ? "Revisat" : "Pendent de revisió"}
+                        <p className="font-semibold">{v.title}</p>
+                        <Badge variant={v.reviewed ? "success" : "warning"}>
+                          {v.reviewed ? "Revisat" : "Pendent de revisió"}
                         </Badge>
                       </div>
-                      {v.comentariProfessor && (
+                      {v.teacherComment && (
                         <p className="flex items-start gap-2 rounded-lg bg-arkedia-blue-light/50 p-3 text-sm text-arkedia-blue">
                           <MessageSquareQuote className="size-4 shrink-0 mt-0.5" />
-                          {v.comentariProfessor}
+                          {v.teacherComment}
                         </p>
                       )}
                     </CardContent>

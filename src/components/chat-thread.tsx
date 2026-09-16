@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Send } from "lucide-react";
+import { sendMessage } from "@/lib/chat-actions";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/types";
 
 export function ChatThread({
+  threadId,
   initialMessages,
   currentAuthor,
   currentAuthorName,
   otherName,
 }: {
+  threadId: string;
   initialMessages: ChatMessage[];
   currentAuthor: "familia" | "professor";
   currentAuthorName: string;
@@ -18,22 +21,32 @@ export function ChatThread({
 }) {
   const [messages, setMessages] = useState(initialMessages);
   const [text, setText] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   function send() {
     const trimmed = text.trim();
     if (!trimmed) return;
+    setError(null);
+    setText("");
     setMessages((m) => [
       ...m,
       {
         id: `local-${Date.now()}`,
-        threadId: initialMessages[0]?.threadId ?? "local",
+        threadId,
         autor: currentAuthor,
         autorNom: currentAuthorName,
         text: trimmed,
         data: new Date().toISOString(),
       },
     ]);
-    setText("");
+
+    startTransition(async () => {
+      const result = await sendMessage(threadId, trimmed);
+      if (!result.success) {
+        setError(result.error ?? "No s'ha pogut enviar el missatge.");
+      }
+    });
   }
 
   return (
@@ -70,7 +83,19 @@ export function ChatThread({
             </div>
           );
         })}
+
+        {messages.length === 0 && (
+          <p className="pt-6 text-center text-sm text-muted">
+            Encara no hi ha cap missatge. Digues hola!
+          </p>
+        )}
       </div>
+
+      {error && (
+        <p className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+          {error}
+        </p>
+      )}
 
       <div className="flex items-center gap-2 border-t border-border pt-3">
         <input
@@ -84,7 +109,7 @@ export function ChatThread({
           onClick={send}
           aria-label="Enviar"
           className="flex size-11 shrink-0 items-center justify-center rounded-full bg-arkedia-blue text-white disabled:opacity-40"
-          disabled={!text.trim()}
+          disabled={!text.trim() || pending}
         >
           <Send className="size-4.5" />
         </button>

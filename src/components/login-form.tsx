@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { ROLE_HOME } from "@/lib/nav-config";
 import type { UserRole } from "@/types";
 
 export function LoginForm() {
@@ -54,8 +55,9 @@ export function LoginForm() {
     }
 
     const role = profile.role as UserRole;
+    const home = ROLE_HOME[role];
     const next = searchParams.get("next");
-    router.push(next && next.startsWith(`/${role}`) ? next : `/${role}`);
+    router.push(next && next.startsWith(home) ? next : home);
     router.refresh();
   }
 

@@ -1,15 +1,31 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Trash2, UploadCloud, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input, Label, Textarea } from "@/components/ui/input";
+import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { submitVideo } from "@/app/alumne/material/actions";
+import { uploadToStorage } from "@/lib/storage-upload";
+import type { MyStudentProfile, StudentTeacherRow } from "@/types";
 
-export function UploadVideo() {
+export function UploadVideo({
+  student,
+  teachers,
+}: {
+  student: MyStudentProfile;
+  teachers: StudentTeacherRow[];
+}) {
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [pending, startTransition] = useTransition();
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [note, setNote] = useState("");
+  const [teacherId, setTeacherId] = useState(teachers[0]?.id ?? "");
+  const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   function handleFiles(files: FileList | null) {
@@ -18,12 +34,58 @@ export function UploadVideo() {
     setFile(f);
     setPreviewUrl(URL.createObjectURL(f));
     setSent(false);
+    setError(null);
   }
 
   function reset() {
     setFile(null);
     setPreviewUrl(null);
+    setTitle("");
+    setNote("");
     setSent(false);
+    setError(null);
+  }
+
+  function submit() {
+    if (!file || !title.trim() || !teacherId) {
+      setError("Cal un títol i triar a quin professor/a l'envies.");
+      return;
+    }
+    setError(null);
+
+    startTransition(async () => {
+      const uploaded = await uploadToStorage("submitted-videos", student.id, file);
+      if (uploaded.error || !uploaded.path) {
+        setError(uploaded.error ?? "No s'ha pogut pujar el vídeo.");
+        return;
+      }
+
+      const result = await submitVideo({
+        title,
+        note,
+        storagePath: uploaded.path,
+        teacherId,
+      });
+
+      if (!result.success) {
+        setError(result.error ?? "No s'ha pogut enviar el vídeo.");
+        return;
+      }
+
+      setSent(true);
+      router.refresh();
+    });
+  }
+
+  if (teachers.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center text-sm text-muted">
+          Encara no tens cap professor/a assignat, així que no pots enviar
+          vídeos. Demana a l&apos;administració que et vinculi un professor/a.
+        </CardContent>
+      </Card>
+    );
   }
 
   if (sent) {
@@ -94,15 +156,50 @@ export function UploadVideo() {
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="titol-video">Títol</Label>
-              <Input id="titol-video" placeholder="Ex: Escala de Do Major - intent 3" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="nota-video">Nota per al professor/a (opcional)</Label>
-              <Textarea id="nota-video" rows={2} placeholder="Ex: M'he trabat una mica al final..." />
+              <Input
+                id="titol-video"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex: Escala de Do Major - intent 3"
+              />
             </div>
 
-            <Button onClick={() => setSent(true)} className="mt-1">
-              Enviar al professor/a
+            {teachers.length > 1 && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="professor-video">Per a quin professor/a?</Label>
+                <Select
+                  id="professor-video"
+                  value={teacherId}
+                  onChange={(e) => setTeacherId(e.target.value)}
+                >
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.firstName} {t.lastName}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="nota-video">Nota per al professor/a (opcional)</Label>
+              <Textarea
+                id="nota-video"
+                rows={2}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="Ex: M'he trabat una mica al final..."
+              />
+            </div>
+
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                {error}
+              </p>
+            )}
+
+            <Button onClick={submit} disabled={pending} className="mt-1">
+              {pending ? "Enviant..." : "Enviar al professor/a"}
             </Button>
           </CardContent>
         </Card>

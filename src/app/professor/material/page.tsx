@@ -1,5 +1,10 @@
 import { PageHeader } from "@/components/page-header";
-import { getMyMaterials, getMySubmittedVideos, getMyTeacherProfile } from "@/lib/professor-data";
+import {
+  getMyMaterials,
+  getMyStudents,
+  getMySubmittedVideos,
+  getMyTeacherProfile,
+} from "@/lib/professor-data";
 import { NoTeacherProfile } from "@/app/professor/page";
 import { MaterialTabs } from "./material-tabs";
 
@@ -18,7 +23,8 @@ export default async function ProfessorMaterialPage() {
     );
   }
 
-  const [materials, submittedVideos] = await Promise.all([
+  const [students, materials, submittedVideos] = await Promise.all([
+    getMyStudents(teacher.id),
     getMyMaterials(teacher.id),
     getMySubmittedVideos(teacher.id),
   ]);
@@ -29,7 +35,12 @@ export default async function ProfessorMaterialPage() {
         title="Material"
         description="Partitures i vídeos, i revisió dels vídeos dels alumnes."
       />
-      <MaterialTabs initialMaterials={materials} initialSubmittedVideos={submittedVideos} />
+      <MaterialTabs
+        teacherId={teacher.id}
+        students={students}
+        initialMaterials={materials}
+        initialSubmittedVideos={submittedVideos}
+      />
     </div>
   );
 }
