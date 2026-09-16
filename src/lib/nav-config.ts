@@ -34,6 +34,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { href: "/alumne/deures", label: "Deures", icon: CheckSquare },
     { href: "/alumne/material", label: "Material", icon: FolderOpen },
     { href: "/alumne/xat", label: "Xat", icon: MessageCircle },
+    { href: "/alumne/avisos", label: "Avisos", icon: Megaphone },
   ],
   professor: [
     { href: "/professor", label: "Agenda", icon: CalendarDays },
@@ -41,6 +42,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { href: "/professor/deures", label: "Deures", icon: CheckSquare },
     { href: "/professor/material", label: "Material", icon: FolderOpen },
     { href: "/professor/xat", label: "Xat", icon: MessageCircle },
+    { href: "/professor/avisos", label: "Avisos", icon: Megaphone },
   ],
   admin: [
     { href: "/admin", label: "Panell", icon: LayoutDashboard },

@@ -311,6 +311,17 @@ export interface StudentSubmittedVideoRow {
   createdAt: string;
 }
 
+// Avisos, tal com els veu el professorat (/professor/avisos) o les famílies
+// (/alumne/avisos) — sense el nom de l'autor, per evitar dependre d'un join
+// embegut a public.users que la seva RLS podria bloquejar per a aquest rol.
+export interface AnnouncementRow {
+  id: string;
+  title: string;
+  body: string;
+  audience: "tothom" | "professors" | "families";
+  createdAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Xat (compartit entre /alumne/xat i /professor/xat).
 // ---------------------------------------------------------------------------
