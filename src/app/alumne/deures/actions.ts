@@ -72,22 +72,62 @@ export async function submitAssignmentVideo(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("assignments")
-    .update({
+
+  // Anem provant objectes d'UPDATE cada cop més petits: si el projecte de
+  // Supabase encara no té alguna de les columnes noves (submitted_at,
+  // submission_note...), PostgREST respon "Could not find the X column" i
+  // fa fallar l'update sencer. En lloc de perdre el vídeo ja pujat a Storage,
+  // reintentem sense els camps més recents fins que en quedi un que sí
+  // existeixi — storage_path (la referència al vídeo) és l'únic
+  // imprescindible i sempre és l'últim que descartem.
+  const attempts: Record<string, unknown>[] = [
+    {
       submission_video_path: input.storagePath,
       submission_note: input.note?.trim() || null,
       submitted_at: new Date().toISOString(),
-    })
-    .eq("id", assignmentId)
-    .eq("student_id", student.id);
+      done: true,
+    },
+    {
+      submission_video_path: input.storagePath,
+      submission_note: input.note?.trim() || null,
+      done: true,
+    },
+    {
+      submission_video_path: input.storagePath,
+      done: true,
+    },
+    {
+      submission_video_path: input.storagePath,
+    },
+  ];
 
-  if (error) {
-    console.error("submitAssignmentVideo: update a assignments ha fallat", error);
-    return { success: false, error: formatDbError(error) };
+  let lastError: { message: string; details?: string | null; hint?: string | null } | null = null;
+
+  for (const payload of attempts) {
+    const { error } = await supabase
+      .from("assignments")
+      .update(payload)
+      .eq("id", assignmentId)
+      .eq("student_id", student.id);
+
+    if (!error) {
+      revalidatePath("/alumne/deures");
+      revalidatePath("/professor/deures");
+      return { success: true };
+    }
+
+    console.error("submitAssignmentVideo: update ha fallat, provant un fallback", payload, error);
+    lastError = error;
+
+    // Si l'error no és "columna no trobada" (p. ex. permisos, xarxa), no té
+    // sentit seguir provant fallbacks amb menys camps: sempre fallarà igual.
+    // PostgREST torna aquest missatge exacte quan li demanes una columna
+    // que no existeix al seu "schema cache" (esquema no actualitzat).
+    if (!error.message.toLowerCase().includes("could not find the")) break;
   }
 
-  revalidatePath("/alumne/deures");
-  revalidatePath("/professor/deures");
-  return { success: true };
+  return {
+    success: false,
+    error: lastError ? formatDbError(lastError) : "No s'ha pogut desar el vídeo del deure.",
+  };
 }
