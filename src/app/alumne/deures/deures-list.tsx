@@ -177,7 +177,10 @@ function AssignmentVideoSubmission({
       try {
         const uploaded = await uploadToStorage("submitted_videos", studentId, file, "video/mp4");
         if (uploaded.error || !uploaded.path) {
-          setError(uploaded.error ?? "No s'ha pogut pujar el vídeo.");
+          const message = uploaded.error ?? "No s'ha pogut pujar el vídeo.";
+          console.error("AssignmentVideoSubmission: pujada a Storage ha fallat", uploaded.error);
+          setError(message);
+          alert(`Error en pujar el vídeo:\n${message}`);
           return;
         }
 
@@ -187,7 +190,10 @@ function AssignmentVideoSubmission({
         });
 
         if (!result.success) {
-          setError(result.error ?? "No s'ha pogut enviar el vídeo.");
+          const message = result.error ?? "No s'ha pogut enviar el vídeo.";
+          console.error("AssignmentVideoSubmission: submitAssignmentVideo ha fallat", result.error);
+          setError(message);
+          alert(`Error en desar el vídeo:\n${message}`);
           return;
         }
 
@@ -195,11 +201,13 @@ function AssignmentVideoSubmission({
         setReplacing(false);
         router.refresh();
       } catch (err) {
-        setError(
+        const message =
           err instanceof Error
             ? err.message
-            : "Alguna cosa ha fallat en enviar el vídeo. Torna-ho a provar."
-        );
+            : "Alguna cosa ha fallat en enviar el vídeo. Torna-ho a provar.";
+        console.error("AssignmentVideoSubmission: error inesperat", err);
+        setError(message);
+        alert(`Error inesperat en pujar el vídeo:\n${message}`);
       }
     });
   }

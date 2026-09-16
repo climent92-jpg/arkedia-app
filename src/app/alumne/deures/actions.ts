@@ -10,6 +10,15 @@ export interface ActionResult {
   error?: string;
 }
 
+// Inclou details/hint (quan Postgres els dona) perquè l'error que es mostri
+// a l'alumne sigui l'exacte de Supabase, no només un "message" genèric.
+function formatDbError(error: { message: string; details?: string | null; hint?: string | null }) {
+  let text = error.message;
+  if (error.details) text += ` — ${error.details}`;
+  if (error.hint) text += ` (${error.hint})`;
+  return text;
+}
+
 // Marca (o desmarca) un deure com a fet. Només pot actuar sobre deures del
 // seu propi student_id (comprovat aquí i, a més, per RLS).
 export async function toggleAssignmentDone(
@@ -73,7 +82,10 @@ export async function submitAssignmentVideo(
     .eq("id", assignmentId)
     .eq("student_id", student.id);
 
-  if (error) return { success: false, error: error.message };
+  if (error) {
+    console.error("submitAssignmentVideo: update a assignments ha fallat", error);
+    return { success: false, error: formatDbError(error) };
+  }
 
   revalidatePath("/alumne/deures");
   revalidatePath("/professor/deures");

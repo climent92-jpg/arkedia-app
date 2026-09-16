@@ -10,6 +10,15 @@ export interface ActionResult {
   error?: string;
 }
 
+// Inclou details/hint (quan Postgres els dona) perquè l'error que es mostri
+// a l'alumne sigui l'exacte de Supabase, no només un "message" genèric.
+function formatDbError(error: { message: string; details?: string | null; hint?: string | null }) {
+  let text = error.message;
+  if (error.details) text += ` — ${error.details}`;
+  if (error.hint) text += ` (${error.hint})`;
+  return text;
+}
+
 // Desa la fila de submitted_videos després que el navegador hagi pujat el
 // fitxer a Supabase Storage (bucket "submitted_videos"). Només crea la fila:
 // requireix que storagePath ja existeixi al bucket sota la carpeta del propi
@@ -49,7 +58,10 @@ export async function submitVideo(input: {
     storage_path: input.storagePath,
   });
 
-  if (error) return { success: false, error: error.message };
+  if (error) {
+    console.error("submitVideo: insert a submitted_videos ha fallat", error);
+    return { success: false, error: formatDbError(error) };
+  }
 
   revalidatePath("/alumne/material");
   revalidatePath("/professor/material");

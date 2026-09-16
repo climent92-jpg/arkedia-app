@@ -116,7 +116,42 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
     .eq("student_id", studentId)
     .order("created_at", { ascending: false });
 
-  if (error || !data) return [];
+  if (error) {
+    console.error("getMyAssignments: select amb columnes de vídeo ha fallat", error);
+    // Si l'esquema de Supabase encara no té les columnes noves de vídeo de
+    // resposta (requires_video/submission_video_path/submission_note),
+    // aquest select falla sencer i, sense aquest fallback, l'alumne no
+    // veuria CAP deure. Reintentem sense aquestes columnes perquè els
+    // deures sempre es puguin veure, encara que la funció de vídeo
+    // encara no funcioni.
+    const fallback = await supabase
+      .from("assignments")
+      .select("id, title, description, due_date, done, teachers(first_name)")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false });
+
+    if (fallback.error || !fallback.data) {
+      console.error("getMyAssignments: fallback també ha fallat", fallback.error);
+      return [];
+    }
+
+    return fallback.data.map((a) => {
+      const teacher = extractOne<{ first_name: string }>(a.teachers);
+      return {
+        id: a.id,
+        title: a.title,
+        description: a.description,
+        teacherFirstName: teacher?.first_name ?? "",
+        dueDate: a.due_date,
+        done: a.done,
+        requiresVideo: false,
+        submissionVideoUrl: null,
+        submissionNote: null,
+      };
+    });
+  }
+
+  if (!data) return [];
 
   return Promise.all(
     data.map(async (a) => {
