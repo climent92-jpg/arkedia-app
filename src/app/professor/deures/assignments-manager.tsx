@@ -2,13 +2,23 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { createAssignment } from "./actions";
+import { createAssignment, deleteAssignment, updateAssignment } from "./actions";
 import type { ProfessorAssignmentRow, ProfessorStudentRow } from "@/types";
+
+function emptyForm(students: ProfessorStudentRow[]) {
+  return {
+    id: undefined as string | undefined,
+    studentId: students[0]?.id ?? "",
+    title: "",
+    description: "",
+    dueDate: "",
+  };
+}
 
 export function AssignmentsManager({
   students,
@@ -21,23 +31,56 @@ export function AssignmentsManager({
   const [pending, startTransition] = useTransition();
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    studentId: students[0]?.id ?? "",
-    title: "",
-    description: "",
-    dueDate: "",
-  });
+  const [form, setForm] = useState(() => emptyForm(students));
+
+  function openCreate() {
+    setForm(emptyForm(students));
+    setError(null);
+    setShowForm(true);
+  }
+
+  function openEdit(a: ProfessorAssignmentRow) {
+    setForm({
+      id: a.id,
+      studentId: a.studentId,
+      title: a.title,
+      description: a.description ?? "",
+      dueDate: a.dueDate ?? "",
+    });
+    setError(null);
+    setShowForm(true);
+  }
 
   function submit() {
     setError(null);
+    const payload = {
+      studentId: form.studentId,
+      title: form.title,
+      description: form.description,
+      dueDate: form.dueDate,
+    };
     startTransition(async () => {
-      const result = await createAssignment(form);
+      const result = form.id
+        ? await updateAssignment(form.id, payload)
+        : await createAssignment(payload);
       if (!result.success) {
         setError(result.error ?? "Alguna cosa ha fallat.");
         return;
       }
-      setForm({ studentId: students[0]?.id ?? "", title: "", description: "", dueDate: "" });
+      setForm(emptyForm(students));
       setShowForm(false);
+      router.refresh();
+    });
+  }
+
+  function remove(a: ProfessorAssignmentRow) {
+    if (!confirm(`Eliminar el deure "${a.title}"?`)) return;
+    startTransition(async () => {
+      const result = await deleteAssignment(a.id);
+      if (!result.success) {
+        alert(result.error ?? "No s'ha pogut eliminar.");
+        return;
+      }
       router.refresh();
     });
   }
@@ -45,7 +88,11 @@ export function AssignmentsManager({
   return (
     <div>
       <div className="mb-5 flex justify-end">
-        <Button size="sm" onClick={() => setShowForm((v) => !v)} disabled={students.length === 0}>
+        <Button
+          size="sm"
+          onClick={() => (showForm ? setShowForm(false) : openCreate())}
+          disabled={students.length === 0}
+        >
           {showForm ? <X className="size-4" /> : <Plus className="size-4" />}
           {showForm ? "Tancar" : "Nou deure"}
         </Button>
@@ -104,7 +151,7 @@ export function AssignmentsManager({
             )}
 
             <Button onClick={submit} disabled={pending} className="mt-1">
-              {pending ? "Desant..." : "Assignar deure"}
+              {pending ? "Desant..." : form.id ? "Desar canvis" : "Assignar deure"}
             </Button>
           </CardContent>
         </Card>
@@ -116,9 +163,27 @@ export function AssignmentsManager({
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-2">
                 <p className="font-bold">{a.title}</p>
-                <Badge variant={a.done ? "success" : "warning"}>
-                  {a.done ? "Fet" : "Pendent"}
-                </Badge>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Badge variant={a.done ? "success" : "warning"}>
+                    {a.done ? "Fet" : "Pendent"}
+                  </Badge>
+                  <button
+                    onClick={() => openEdit(a)}
+                    disabled={pending}
+                    className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-black/[0.05] hover:text-arkedia-blue disabled:opacity-50"
+                    aria-label="Editar"
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                  <button
+                    onClick={() => remove(a)}
+                    disabled={pending}
+                    className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                    aria-label="Eliminar"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
               </div>
               {a.description && <p className="mt-1 text-sm text-muted">{a.description}</p>}
               <div className="mt-2 flex flex-wrap gap-1.5">

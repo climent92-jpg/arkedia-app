@@ -45,3 +45,57 @@ export async function createAssignment(input: {
   revalidatePath("/professor/deures");
   return { success: true };
 }
+
+// No filtrem per teacher_id: la policy RLS "assignments_update_teacher"/
+// "assignments_delete_teacher" ja restringeix l'acció als deures propis.
+export async function updateAssignment(
+  assignmentId: string,
+  input: {
+    studentId: string;
+    title: string;
+    description?: string;
+    dueDate?: string;
+  }
+): Promise<ActionResult> {
+  try {
+    await requireProfile("professor");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  if (!input.studentId || !input.title.trim()) {
+    return { success: false, error: "Cal triar un alumne i escriure un títol." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("assignments")
+    .update({
+      student_id: input.studentId,
+      title: input.title.trim(),
+      description: input.description?.trim() || null,
+      due_date: input.dueDate || null,
+    })
+    .eq("id", assignmentId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/professor/deures");
+  return { success: true };
+}
+
+export async function deleteAssignment(assignmentId: string): Promise<ActionResult> {
+  try {
+    await requireProfile("professor");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("assignments").delete().eq("id", assignmentId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/professor/deures");
+  return { success: true };
+}
