@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { VideoPlayer } from "@/components/video-player";
 import { createAssignment, deleteAssignment, updateAssignment } from "./actions";
 import type { ProfessorAssignmentRow, ProfessorStudentRow } from "@/types";
 
@@ -17,6 +18,7 @@ function emptyForm(students: ProfessorStudentRow[]) {
     title: "",
     description: "",
     dueDate: "",
+    requiresVideo: false,
   };
 }
 
@@ -46,6 +48,7 @@ export function AssignmentsManager({
       title: a.title,
       description: a.description ?? "",
       dueDate: a.dueDate ?? "",
+      requiresVideo: a.requiresVideo,
     });
     setError(null);
     setShowForm(true);
@@ -58,6 +61,7 @@ export function AssignmentsManager({
       title: form.title,
       description: form.description,
       dueDate: form.dueDate,
+      requiresVideo: form.requiresVideo,
     };
     startTransition(async () => {
       const result = form.id
@@ -144,6 +148,16 @@ export function AssignmentsManager({
               />
             </div>
 
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={form.requiresVideo}
+                onChange={(e) => setForm((f) => ({ ...f, requiresVideo: e.target.checked }))}
+                className="size-4 accent-arkedia-blue"
+              />
+              Requereix vídeo de resposta
+            </label>
+
             {error && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
                 {error}
@@ -199,7 +213,22 @@ export function AssignmentsManager({
                     })}
                   </Badge>
                 )}
+                {a.requiresVideo && (
+                  <Badge variant={a.submissionVideoUrl ? "success" : "outline"}>
+                    <Video className="size-3" />
+                    {a.submissionVideoUrl ? "Vídeo rebut" : "Vídeo pendent"}
+                  </Badge>
+                )}
               </div>
+
+              {a.submissionVideoUrl && (
+                <div className="mt-3 flex flex-col gap-2">
+                  <VideoPlayer src={a.submissionVideoUrl} title={`Resposta de ${a.studentFirstName}`} />
+                  {a.submissionNote && (
+                    <p className="text-sm text-muted italic">&quot;{a.submissionNote}&quot;</p>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

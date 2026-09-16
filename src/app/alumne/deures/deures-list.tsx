@@ -1,18 +1,24 @@
 "use client";
 
-import { useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, CheckCircle2, Circle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Circle, UploadCloud, Video } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/input";
+import { VideoPlayer } from "@/components/video-player";
+import { uploadToStorage } from "@/lib/storage-upload";
 import { cn } from "@/lib/utils";
-import { toggleAssignmentDone } from "./actions";
+import { submitAssignmentVideo, toggleAssignmentDone } from "./actions";
 import type { StudentAssignmentRow } from "@/types";
 
 export function DeuresList({
   assignments,
+  studentId,
 }: {
   assignments: StudentAssignmentRow[];
+  studentId: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -35,14 +41,26 @@ export function DeuresList({
     <div>
       <Section title={`Pendents (${pendents.length})`}>
         {pendents.map((a) => (
-          <AssignmentCard key={a.id} assignment={a} pending={pending} onToggle={() => toggle(a)} />
+          <AssignmentCard
+            key={a.id}
+            assignment={a}
+            studentId={studentId}
+            pending={pending}
+            onToggle={() => toggle(a)}
+          />
         ))}
         {pendents.length === 0 && <EmptyRow text="Cap deure pendent, molt bé!" />}
       </Section>
 
       <Section title={`Fets (${fets.length})`}>
         {fets.map((a) => (
-          <AssignmentCard key={a.id} assignment={a} pending={pending} onToggle={() => toggle(a)} />
+          <AssignmentCard
+            key={a.id}
+            assignment={a}
+            studentId={studentId}
+            pending={pending}
+            onToggle={() => toggle(a)}
+          />
         ))}
         {fets.length === 0 && <EmptyRow text="Encara no n'hi ha cap." />}
       </Section>
@@ -69,14 +87,16 @@ function EmptyRow({ text }: { text: string }) {
 
 function AssignmentCard({
   assignment,
+  studentId,
   pending,
   onToggle,
 }: {
   assignment: StudentAssignmentRow;
+  studentId: string;
   pending: boolean;
   onToggle: () => void;
 }) {
-  const { title, description, teacherFirstName, dueDate, done } = assignment;
+  const { title, description, teacherFirstName, dueDate, done, requiresVideo } = assignment;
   return (
     <Card className={cn(done && "bg-arkedia-blue-light/40")}>
       <CardContent className="flex items-start gap-3 p-4">
@@ -107,9 +127,153 @@ function AssignmentCard({
                 })}
               </Badge>
             )}
+            {requiresVideo && (
+              <Badge variant={assignment.submissionVideoUrl ? "success" : "outline"}>
+                <Video className="size-3" />
+                {assignment.submissionVideoUrl ? "Vídeo enviat" : "Vídeo pendent"}
+              </Badge>
+            )}
           </div>
+
+          {requiresVideo && (
+            <AssignmentVideoSubmission assignment={assignment} studentId={studentId} />
+          )}
         </div>
       </CardContent>
     </Card>
   );
+}
+
+function AssignmentVideoSubmission({
+  assignment,
+  studentId,
+}: {
+  assignment: StudentAssignmentRow;
+  studentId: string;
+}) {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pending, startTransition] = useTransition();
+  const [file, setFile] = useState<File | null>(null);
+  const [note, setNote] = useState(assignment.submissionNote ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [replacing, setReplacing] = useState(false);
+
+  function handleFile(files: FileList | null) {
+    const f = files?.[0];
+    if (!f) return;
+    setFile(f);
+    setError(null);
+  }
+
+  function submit() {
+    if (!file) {
+      setError("Selecciona un vídeo.");
+      return;
+    }
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        const uploaded = await uploadToStorage("submitted_videos", studentId, file, "video/mp4");
+        if (uploaded.error || !uploaded.path) {
+          setError(uploaded.error ?? "No s'ha pogut pujar el vídeo.");
+          return;
+        }
+
+        const result = await submitAssignmentVideo(assignment.id, {
+          storagePath: uploaded.path,
+          note,
+        });
+
+        if (!result.success) {
+          setError(result.error ?? "No s'ha pogut enviar el vídeo.");
+          return;
+        }
+
+        setFile(null);
+        setReplacing(false);
+        router.refresh();
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Alguna cosa ha fallat en enviar el vídeo. Torna-ho a provar."
+        );
+      }
+    });
+  }
+
+  if (assignment.submissionVideoUrl && !replacing) {
+    return (
+      <div className="mt-3 flex flex-col gap-2">
+        <VideoPlayer src={assignment.submissionVideoUrl} title={videoTitle(assignment)} />
+        {assignment.submissionNote && (
+          <p className="text-sm text-muted italic">&quot;{assignment.submissionNote}&quot;</p>
+        )}
+        <Button variant="outline" size="sm" className="self-start" onClick={() => setReplacing(true)}>
+          Substituir el vídeo
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      {!file && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-surface px-4 py-4 text-sm font-semibold text-arkedia-blue transition-colors hover:border-arkedia-blue hover:bg-arkedia-blue-light/40"
+        >
+          <UploadCloud className="size-4" />
+          Pujar el vídeo de resposta
+          <input
+            ref={inputRef}
+            type="file"
+            accept="video/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => handleFile(e.target.files)}
+          />
+        </button>
+      )}
+
+      {file && (
+        <>
+          <p className="text-sm text-muted">{file.name}</p>
+          <Textarea
+            rows={2}
+            placeholder="Nota per al professor/a (opcional)"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <Button size="sm" onClick={submit} disabled={pending}>
+              {pending ? "Enviant..." : "Enviar vídeo"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setFile(null);
+                setReplacing(false);
+              }}
+              disabled={pending}
+            >
+              Cancel·lar
+            </Button>
+          </div>
+        </>
+      )}
+
+      {error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>
+      )}
+    </div>
+  );
+}
+
+function videoTitle(assignment: StudentAssignmentRow) {
+  return `Resposta a ${assignment.title}`;
 }

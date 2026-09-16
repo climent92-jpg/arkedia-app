@@ -140,7 +140,7 @@ export async function deleteSubmittedVideo(videoId: string): Promise<ActionResul
   if (error) return { success: false, error: error.message };
 
   if (video?.storage_path) {
-    await supabase.storage.from("submitted-videos").remove([video.storage_path]);
+    await supabase.storage.from("submitted_videos").remove([video.storage_path]);
   }
 
   revalidatePath("/professor/material");

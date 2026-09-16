@@ -11,7 +11,7 @@ import { uploadToStorage } from "@/lib/storage-upload";
 import type { MyStudentProfile, StudentTeacherRow } from "@/types";
 
 const MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024; // 200MB — coincideix amb el
-// file_size_limit del bucket "submitted-videos" (vegeu supabase/schema.sql).
+// file_size_limit del bucket "submitted_videos" (vegeu supabase/schema.sql).
 
 export function UploadVideo({
   student,
@@ -65,7 +65,7 @@ export function UploadVideo({
     startTransition(async () => {
       try {
         const uploaded = await uploadToStorage(
-          "submitted-videos",
+          "submitted_videos",
           student.id,
           file,
           "video/mp4"

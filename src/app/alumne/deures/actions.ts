@@ -39,3 +39,43 @@ export async function toggleAssignmentDone(
   revalidatePath("/alumne/deures");
   return { success: true };
 }
+
+// Desa el vídeo de resposta d'un deure després que el navegador l'hagi pujat
+// a Supabase Storage (bucket "submitted_videos", mateixa convenció de camins
+// que els vídeos generals: "<student_id>/<uuid>-<filename>").
+export async function submitAssignmentVideo(
+  assignmentId: string,
+  input: { storagePath: string; note?: string }
+): Promise<ActionResult> {
+  try {
+    await requireProfile("familia");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  const student = await getMyStudentProfile();
+  if (!student) {
+    return { success: false, error: "El teu compte no té cap fitxa d'alumne vinculada." };
+  }
+
+  if (!input.storagePath) {
+    return { success: false, error: "Falta el vídeo." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("assignments")
+    .update({
+      submission_video_path: input.storagePath,
+      submission_note: input.note?.trim() || null,
+      submitted_at: new Date().toISOString(),
+    })
+    .eq("id", assignmentId)
+    .eq("student_id", student.id);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/alumne/deures");
+  revalidatePath("/professor/deures");
+  return { success: true };
+}
