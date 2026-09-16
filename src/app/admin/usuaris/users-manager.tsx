@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Input, Label, Select } from "@/components/ui/input";
-import { createUser, deleteUser, updateUser } from "./actions";
+import { createUser, deleteUser, updateUser, updateUserPassword } from "./actions";
 import type { AdminUserRow, UserRole } from "@/types";
 
 const ROLE_LABEL: Record<UserRole, string> = {
@@ -204,6 +204,7 @@ export function UsersManager({ initialUsers }: { initialUsers: AdminUserRow[] })
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-1">
+                <ChangePasswordButton user={u} />
                 <button
                   onClick={() => openEdit(u)}
                   className="flex size-9 items-center justify-center rounded-lg text-muted hover:bg-black/[0.05] hover:text-arkedia-blue"
@@ -232,6 +233,75 @@ export function UsersManager({ initialUsers }: { initialUsers: AdminUserRow[] })
         )}
       </div>
     </div>
+  );
+}
+
+function ChangePasswordButton({ user }: { user: AdminUserRow }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  function close(isOpen: boolean) {
+    setOpen(isOpen);
+    if (!isOpen) {
+      setPassword("");
+      setError(null);
+      setDone(false);
+    }
+  }
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const result = await updateUserPassword(user.id, password);
+      if (!result.success) {
+        setError(result.error ?? "Alguna cosa ha fallat.");
+        return;
+      }
+      setDone(true);
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogTrigger asChild>
+        <button
+          className="flex size-9 items-center justify-center rounded-lg text-muted hover:bg-black/[0.05] hover:text-arkedia-blue"
+          aria-label="Canviar contrasenya"
+        >
+          <KeyRound className="size-4" />
+        </button>
+      </DialogTrigger>
+      <DialogContent
+        title="Canviar contrasenya"
+        description={`Estableix una contrasenya nova per a ${user.fullName}.`}
+      >
+        {done ? (
+          <div className="flex flex-col gap-3">
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+              Contrasenya actualitzada.
+            </p>
+            <Button onClick={() => close(false)}>Tancar</Button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <Field label="Contrasenya nova">
+              <Input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Mínim 6 caràcters"
+              />
+            </Field>
+            {error && <FormError>{error}</FormError>}
+            <Button onClick={submit} disabled={pending || password.trim().length < 6}>
+              {pending ? "Desant..." : "Canviar contrasenya"}
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 

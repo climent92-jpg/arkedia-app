@@ -10,6 +10,9 @@ import { submitVideo } from "@/app/alumne/material/actions";
 import { uploadToStorage } from "@/lib/storage-upload";
 import type { MyStudentProfile, StudentTeacherRow } from "@/types";
 
+const MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024; // 200MB — coincideix amb el
+// file_size_limit del bucket "submitted-videos" (vegeu supabase/schema.sql).
+
 export function UploadVideo({
   student,
   teachers,
@@ -31,6 +34,12 @@ export function UploadVideo({
   function handleFiles(files: FileList | null) {
     const f = files?.[0];
     if (!f) return;
+    if (f.size > MAX_FILE_SIZE_BYTES) {
+      setError(
+        `El vídeo pesa ${(f.size / (1024 * 1024)).toFixed(0)}MB, més del límit de 200MB. Grava'l amb menys qualitat o retalla'l.`
+      );
+      return;
+    }
     setFile(f);
     setPreviewUrl(URL.createObjectURL(f));
     setSent(false);
@@ -143,6 +152,12 @@ export function UploadVideo({
             onChange={(e) => handleFiles(e.target.files)}
           />
         </button>
+      )}
+
+      {!file && error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+          {error}
+        </p>
       )}
 
       {file && previewUrl && (
