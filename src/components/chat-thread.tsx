@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Send } from "lucide-react";
-import { sendMessage } from "@/lib/chat-actions";
+import { useRouter } from "next/navigation";
+import { Send, Trash2 } from "lucide-react";
+import { deleteThread, sendMessage } from "@/lib/chat-actions";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/types";
 
@@ -19,10 +20,31 @@ export function ChatThread({
   currentAuthorName: string;
   otherName: string;
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState(initialMessages);
   const [text, setText] = useState("");
   const [pending, startTransition] = useTransition();
+  const [deleting, startDeleteTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  const backHref = currentAuthor === "professor" ? "/professor/xat" : "/alumne/xat";
+
+  function removeThread() {
+    if (
+      !confirm(
+        "Eliminar aquesta conversa? S'esborraran tots els missatges per a totes dues bandes."
+      )
+    )
+      return;
+    startDeleteTransition(async () => {
+      const result = await deleteThread(threadId);
+      if (!result.success) {
+        setError(result.error ?? "No s'ha pogut eliminar la conversa.");
+        return;
+      }
+      router.push(backHref);
+    });
+  }
 
   function send() {
     const trimmed = text.trim();
@@ -51,9 +73,19 @@ export function ChatThread({
 
   return (
     <div className="flex h-[calc(100dvh-9.5rem)] flex-col md:h-[calc(100dvh-8rem)]">
-      <div className="border-b border-border pb-3">
-        <p className="font-bold">{otherName}</p>
-        <p className="text-xs text-muted">Normalment respon en menys d&apos;un dia</p>
+      <div className="flex items-start justify-between gap-2 border-b border-border pb-3">
+        <div>
+          <p className="font-bold">{otherName}</p>
+          <p className="text-xs text-muted">Normalment respon en menys d&apos;un dia</p>
+        </div>
+        <button
+          onClick={removeThread}
+          disabled={deleting}
+          aria-label="Eliminar conversa"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+        >
+          <Trash2 className="size-4" />
+        </button>
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto py-4">

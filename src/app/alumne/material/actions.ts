@@ -49,3 +49,31 @@ export async function submitVideo(input: {
   revalidatePath("/alumne/material");
   return { success: true };
 }
+
+// No cal filtrar per student_id: la policy RLS "submitted_videos_delete_family"
+// ja restringeix l'acció als vídeos del propi alumne.
+export async function deleteSubmittedVideo(videoId: string): Promise<ActionResult> {
+  try {
+    await requireProfile("familia");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  const supabase = await createClient();
+  const { data: video } = await supabase
+    .from("submitted_videos")
+    .select("storage_path")
+    .eq("id", videoId)
+    .maybeSingle();
+
+  const { error } = await supabase.from("submitted_videos").delete().eq("id", videoId);
+  if (error) return { success: false, error: error.message };
+
+  if (video?.storage_path) {
+    await supabase.storage.from("submitted-videos").remove([video.storage_path]);
+  }
+
+  revalidatePath("/alumne/material");
+  revalidatePath("/professor/material");
+  return { success: true };
+}

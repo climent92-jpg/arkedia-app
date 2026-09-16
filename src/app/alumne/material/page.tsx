@@ -1,6 +1,5 @@
-import { Download, FileText, MessageSquareQuote } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UploadVideo } from "@/components/upload-video";
@@ -12,6 +11,7 @@ import {
   getMyTeachers,
 } from "@/lib/student-data";
 import { NoStudentProfile } from "@/app/alumne/agenda/page";
+import { SubmittedVideosList } from "./submitted-videos-list";
 
 // Depèn de la sessió i de dades en viu de Supabase: no es pot prerenderitzar.
 export const dynamic = "force-dynamic";
@@ -110,35 +110,7 @@ export default async function AlumneMaterialPage() {
 
         <TabsContent value="meu-video" className="flex flex-col gap-4">
           <UploadVideo student={student} teachers={teachers} />
-
-          {submittedVideos.length > 0 && (
-            <div>
-              <h2 className="mb-2 mt-2 text-sm font-bold uppercase tracking-wide text-muted">
-                Vídeos enviats
-              </h2>
-              <div className="flex flex-col gap-3">
-                {submittedVideos.map((v) => (
-                  <Card key={v.id}>
-                    <CardContent className="flex flex-col gap-2.5 p-4">
-                      <VideoPlayer src={v.url ?? "#"} title={v.title} />
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="font-semibold">{v.title}</p>
-                        <Badge variant={v.reviewed ? "success" : "warning"}>
-                          {v.reviewed ? "Revisat" : "Pendent de revisió"}
-                        </Badge>
-                      </div>
-                      {v.teacherComment && (
-                        <p className="flex items-start gap-2 rounded-lg bg-arkedia-blue-light/50 p-3 text-sm text-arkedia-blue">
-                          <MessageSquareQuote className="size-4 shrink-0 mt-0.5" />
-                          {v.teacherComment}
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
+          <SubmittedVideosList videos={submittedVideos} />
         </TabsContent>
       </Tabs>
     </div>

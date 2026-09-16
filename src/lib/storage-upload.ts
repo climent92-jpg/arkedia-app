@@ -12,10 +12,16 @@ export interface UploadResult {
 // policies de storage.objects fan servir per decidir qui hi té accés —
 // vegeu supabase/schema.sql, seccions "materials_storage_*" i
 // "submitted_videos_storage_*".
+//
+// "fallbackContentType" es fa servir quan el navegador no sap detectar el
+// tipus del fitxer (per exemple un vídeo gravat amb la càmera del mòbil, on
+// file.type sovint arriba buit): sense un Content-Type de vídeo/àudio
+// correcte a Storage, el <video> es reprodueix només amb so, sense imatge.
 export async function uploadToStorage(
   bucket: string,
   folder: string,
-  file: File
+  file: File,
+  fallbackContentType?: string
 ): Promise<UploadResult> {
   const supabase = createClient();
   const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
@@ -23,7 +29,8 @@ export async function uploadToStorage(
 
   const { error } = await supabase.storage.from(bucket).upload(path, file, {
     cacheControl: "3600",
-    upsert: false,
+    upsert: true,
+    contentType: file.type || fallbackContentType || "application/octet-stream",
   });
 
   if (error) return { path: null, error: error.message };

@@ -54,7 +54,12 @@ export function UploadVideo({
     setError(null);
 
     startTransition(async () => {
-      const uploaded = await uploadToStorage("submitted-videos", student.id, file);
+      const uploaded = await uploadToStorage(
+        "submitted-videos",
+        student.id,
+        file,
+        "video/mp4"
+      );
       if (uploaded.error || !uploaded.path) {
         setError(uploaded.error ?? "No s'ha pogut pujar el vídeo.");
         return;
@@ -138,7 +143,9 @@ export function UploadVideo({
             <video
               src={previewUrl}
               controls
-              className="aspect-video w-full rounded-xl bg-black"
+              playsInline
+              preload="metadata"
+              className="aspect-video max-h-[400px] w-full rounded-xl bg-black object-contain"
             />
             <div className="flex items-center justify-between gap-2 text-sm">
               <span className="flex min-w-0 items-center gap-2 truncate text-muted">
