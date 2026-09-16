@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { getSignedUrl } from "@/lib/storage-signed-url";
 import type {
+  AnnouncementRow,
   MyTeacherProfile,
   ProfessorAssignmentRow,
   ProfessorMaterialRow,
@@ -200,6 +201,28 @@ export async function getMySubmittedVideos(
       };
     })
   );
+}
+
+// Avisos de l'administració adreçats a "tothom" o específicament al
+// professorat — la policy "announcements_select_teacher" aplica el mateix
+// filtre a nivell de base de dades.
+export async function getMyAnnouncements(): Promise<AnnouncementRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("announcements")
+    .select("id, title, body, audience, created_at")
+    .in("audience", ["tothom", "professors"])
+    .order("created_at", { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.map((a) => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    audience: a.audience,
+    createdAt: a.created_at,
+  }));
 }
 
 export async function getMyAssignments(teacherId: string): Promise<ProfessorAssignmentRow[]> {

@@ -530,6 +530,14 @@ create policy "assignments_delete_teacher" on public.assignments
     )
   );
 
+-- Avisos adreçats a "tothom" o específicament al professorat.
+drop policy if exists "announcements_select_teacher" on public.announcements;
+create policy "announcements_select_teacher" on public.announcements
+  for select using (
+    audience in ('tothom', 'professors')
+    and exists (select 1 from public.teachers t where t.user_id = auth.uid())
+  );
+
 -- ----------------------------------------------------------------------------
 -- Accés de la família/alumne a les seves pròpies dades (portal /alumne).
 -- ----------------------------------------------------------------------------
@@ -621,6 +629,14 @@ create policy "submitted_videos_insert_family" on public.submitted_videos
       select 1 from public.students s
       where s.id = submitted_videos.student_id and s.family_user_id = auth.uid()
     )
+  );
+
+-- Avisos adreçats a "tothom" o específicament a les famílies.
+drop policy if exists "announcements_select_family" on public.announcements;
+create policy "announcements_select_family" on public.announcements
+  for select using (
+    audience in ('tothom', 'families')
+    and exists (select 1 from public.students s where s.family_user_id = auth.uid())
   );
 
 -- ----------------------------------------------------------------------------
