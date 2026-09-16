@@ -33,6 +33,12 @@ export async function uploadToStorage(
     contentType: file.type || fallbackContentType || "application/octet-stream",
   });
 
-  if (error) return { path: null, error: error.message };
+  if (error) {
+    // Inclou el codi/estat de Supabase Storage (ex: "Bucket not found") a
+    // més del missatge, perquè qui rep l'error vegi exactament què ha
+    // passat, no un "No s'ha pogut pujar el vídeo" genèric.
+    const code = "statusCode" in error ? (error as { statusCode?: string }).statusCode : undefined;
+    return { path: null, error: code ? `${error.message} (${code})` : error.message };
+  }
   return { path, error: null };
 }

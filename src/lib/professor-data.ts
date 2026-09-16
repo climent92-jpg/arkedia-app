@@ -235,7 +235,43 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
     .eq("teacher_id", teacherId)
     .order("created_at", { ascending: false });
 
-  if (error || !data) return [];
+  if (error) {
+    console.error("getMyAssignments: select amb columnes de vídeo ha fallat", error);
+    // Igual que al costat de l'alumne: si l'esquema encara no té les
+    // columnes noves de vídeo de resposta, no deixem que això faci
+    // desaparèixer tota la llista de deures del professor.
+    const fallback = await supabase
+      .from("assignments")
+      .select(
+        "id, student_id, title, description, due_date, done, students(first_name, last_name)"
+      )
+      .eq("teacher_id", teacherId)
+      .order("created_at", { ascending: false });
+
+    if (fallback.error || !fallback.data) {
+      console.error("getMyAssignments: fallback també ha fallat", fallback.error);
+      return [];
+    }
+
+    return fallback.data.map((a) => {
+      const student = extractOne<{ first_name: string; last_name: string }>(a.students);
+      return {
+        id: a.id,
+        studentId: a.student_id,
+        studentFirstName: student?.first_name ?? "",
+        studentLastName: student?.last_name ?? "",
+        title: a.title,
+        description: a.description,
+        dueDate: a.due_date,
+        done: a.done,
+        requiresVideo: false,
+        submissionVideoUrl: null,
+        submissionNote: null,
+      };
+    });
+  }
+
+  if (!data) return [];
 
   return Promise.all(
     data.map(async (a) => {

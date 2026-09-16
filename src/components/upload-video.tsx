@@ -71,7 +71,10 @@ export function UploadVideo({
           "video/mp4"
         );
         if (uploaded.error || !uploaded.path) {
-          setError(uploaded.error ?? "No s'ha pogut pujar el vídeo.");
+          const message = uploaded.error ?? "No s'ha pogut pujar el vídeo.";
+          console.error("UploadVideo: pujada a Storage ha fallat", uploaded.error);
+          setError(message);
+          alert(`Error en pujar el vídeo:\n${message}`);
           return;
         }
 
@@ -83,18 +86,23 @@ export function UploadVideo({
         });
 
         if (!result.success) {
-          setError(result.error ?? "No s'ha pogut enviar el vídeo.");
+          const message = result.error ?? "No s'ha pogut enviar el vídeo.";
+          console.error("UploadVideo: submitVideo ha fallat", result.error);
+          setError(message);
+          alert(`Error en desar el vídeo:\n${message}`);
           return;
         }
 
         setSent(true);
         router.refresh();
       } catch (err) {
-        setError(
+        const message =
           err instanceof Error
             ? err.message
-            : "Alguna cosa ha fallat en enviar el vídeo. Torna-ho a provar."
-        );
+            : "Alguna cosa ha fallat en enviar el vídeo. Torna-ho a provar.";
+        console.error("UploadVideo: error inesperat", err);
+        setError(message);
+        alert(`Error inesperat en pujar el vídeo:\n${message}`);
       }
     });
   }
