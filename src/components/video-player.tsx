@@ -33,8 +33,12 @@ export function VideoPlayer({
 
   return (
     <video
-      className={cn("aspect-video w-full rounded-xl bg-black", className)}
+      className={cn(
+        "aspect-video max-h-[400px] w-full rounded-xl bg-black object-contain",
+        className
+      )}
       controls
+      playsInline
       preload="metadata"
       title={title}
       src={src}

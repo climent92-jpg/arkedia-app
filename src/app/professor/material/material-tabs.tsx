@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FileText, Plus, X } from "lucide-react";
+import { CheckCircle2, FileText, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +10,12 @@ import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VideoPlayer } from "@/components/video-player";
 import { uploadToStorage } from "@/lib/storage-upload";
-import { createMaterial, updateSubmittedVideoReview } from "./actions";
+import {
+  createMaterial,
+  deleteMaterial,
+  deleteSubmittedVideo,
+  updateSubmittedVideoReview,
+} from "./actions";
 import type { ProfessorMaterialRow, ProfessorStudentRow, ProfessorSubmittedVideoRow } from "@/types";
 
 export function MaterialTabs({
@@ -40,27 +45,7 @@ export function MaterialTabs({
         <UploadMaterialForm teacherId={teacherId} students={students} />
 
         {initialMaterials.map((m) => (
-          <Card key={m.id}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-arkedia-blue-light text-arkedia-blue">
-                <FileText className="size-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold">{m.title}</p>
-                <p className="truncate text-sm text-muted">
-                  {m.studentName ?? "Tots els meus alumnes"}
-                </p>
-              </div>
-              <Badge variant="outline">{m.type}</Badge>
-              {m.url && (
-                <Button asChild variant="outline" size="sm">
-                  <a href={m.url} target="_blank" rel="noreferrer">
-                    Obrir
-                  </a>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          <MaterialCard key={m.id} material={m} />
         ))}
 
         {initialMaterials.length === 0 && (
@@ -89,6 +74,55 @@ export function MaterialTabs({
   );
 }
 
+function MaterialCard({ material }: { material: ProfessorMaterialRow }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+
+  function remove() {
+    if (!confirm(`Eliminar "${material.title}"?`)) return;
+    startTransition(async () => {
+      const result = await deleteMaterial(material.id);
+      if (!result.success) {
+        alert(result.error ?? "No s'ha pogut eliminar.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 p-4">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-arkedia-blue-light text-arkedia-blue">
+          <FileText className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{material.title}</p>
+          <p className="truncate text-sm text-muted">
+            {material.studentName ?? "Tots els meus alumnes"}
+          </p>
+        </div>
+        <Badge variant="outline">{material.type}</Badge>
+        {material.url && (
+          <Button asChild variant="outline" size="sm">
+            <a href={material.url} target="_blank" rel="noreferrer">
+              Obrir
+            </a>
+          </Button>
+        )}
+        <button
+          onClick={remove}
+          disabled={pending}
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          aria-label="Eliminar"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function SubmittedVideoCard({ video }: { video: ProfessorSubmittedVideoRow }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -110,6 +144,18 @@ function SubmittedVideoCard({ video }: { video: ProfessorSubmittedVideoRow }) {
     });
   }
 
+  function remove() {
+    if (!confirm(`Eliminar el vídeo "${video.title}"?`)) return;
+    startTransition(async () => {
+      const result = await deleteSubmittedVideo(video.id);
+      if (!result.success) {
+        alert(result.error ?? "No s'ha pogut eliminar.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">
@@ -122,9 +168,19 @@ function SubmittedVideoCard({ video }: { video: ProfessorSubmittedVideoRow }) {
               <p className="mt-1 text-sm text-muted italic">&quot;{video.studentNote}&quot;</p>
             )}
           </div>
-          <Badge variant={video.reviewed ? "success" : "warning"}>
-            {video.reviewed ? "Revisat" : "Pendent"}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Badge variant={video.reviewed ? "success" : "warning"}>
+              {video.reviewed ? "Revisat" : "Pendent"}
+            </Badge>
+            <button
+              onClick={remove}
+              disabled={pending}
+              className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+              aria-label="Eliminar"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
         </div>
         <Textarea
           rows={2}
@@ -164,6 +220,12 @@ const emptyForm = {
   description: "",
 };
 
+const FALLBACK_CONTENT_TYPE: Record<typeof emptyForm.type, string> = {
+  partitura: "application/pdf",
+  video: "video/mp4",
+  audio: "audio/mpeg",
+};
+
 function UploadMaterialForm({
   teacherId,
   students,
@@ -198,7 +260,12 @@ function UploadMaterialForm({
     }
 
     startTransition(async () => {
-      const upload = await uploadToStorage("materials", teacherId, file);
+      const upload = await uploadToStorage(
+        "materials",
+        teacherId,
+        file,
+        FALLBACK_CONTENT_TYPE[form.type]
+      );
       if (!upload.path) {
         setError(upload.error ?? "No s'ha pogut pujar el fitxer.");
         return;

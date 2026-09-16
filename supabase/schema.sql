@@ -500,6 +500,18 @@ create policy "submitted_videos_update_teacher" on public.submitted_videos
     )
   );
 
+-- Perquè qualsevol dels seus professors pugui eliminar un vídeo enviat
+-- (per exemple si s'ha adreçat per error o ja no cal).
+drop policy if exists "submitted_videos_delete_teacher" on public.submitted_videos;
+create policy "submitted_videos_delete_teacher" on public.submitted_videos
+  for delete using (
+    exists (
+      select 1 from public.teachers t
+      join public.student_teachers st on st.teacher_id = t.id
+      where st.student_id = submitted_videos.student_id and t.user_id = auth.uid()
+    )
+  );
+
 drop policy if exists "assignments_select_teacher" on public.assignments;
 create policy "assignments_select_teacher" on public.assignments
   for select using (
@@ -637,6 +649,16 @@ create policy "submitted_videos_insert_family" on public.submitted_videos
     )
   );
 
+-- L'alumne pot eliminar els seus propis vídeos enviats.
+drop policy if exists "submitted_videos_delete_family" on public.submitted_videos;
+create policy "submitted_videos_delete_family" on public.submitted_videos
+  for delete using (
+    exists (
+      select 1 from public.students s
+      where s.id = submitted_videos.student_id and s.family_user_id = auth.uid()
+    )
+  );
+
 -- Avisos adreçats a "tothom" o específicament a les famílies.
 drop policy if exists "announcements_select_family" on public.announcements;
 create policy "announcements_select_family" on public.announcements
@@ -665,6 +687,21 @@ create policy "message_threads_select_participant" on public.message_threads
 drop policy if exists "message_threads_insert_participant" on public.message_threads;
 create policy "message_threads_insert_participant" on public.message_threads
   for insert with check (
+    exists (
+      select 1 from public.students s
+      where s.id = message_threads.student_id and s.family_user_id = auth.uid()
+    )
+    or exists (
+      select 1 from public.teachers t
+      where t.id = message_threads.teacher_id and t.user_id = auth.uid()
+    )
+  );
+
+-- Qualsevol de les dues bandes pot eliminar (buidar) la conversa; els seus
+-- missatges s'esborren en cascada (messages.thread_id ... on delete cascade).
+drop policy if exists "message_threads_delete_participant" on public.message_threads;
+create policy "message_threads_delete_participant" on public.message_threads
+  for delete using (
     exists (
       select 1 from public.students s
       where s.id = message_threads.student_id and s.family_user_id = auth.uid()
@@ -778,6 +815,23 @@ create policy "submitted_videos_storage_insert_family" on storage.objects
     and exists (
       select 1 from public.students s
       where s.id::text = (storage.foldername(name))[1] and s.family_user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "submitted_videos_storage_delete_participant" on storage.objects;
+create policy "submitted_videos_storage_delete_participant" on storage.objects
+  for delete using (
+    bucket_id = 'submitted-videos'
+    and (
+      exists (
+        select 1 from public.students s
+        where s.id::text = (storage.foldername(name))[1] and s.family_user_id = auth.uid()
+      )
+      or exists (
+        select 1 from public.teachers t
+        join public.student_teachers st on st.teacher_id = t.id
+        where st.student_id::text = (storage.foldername(name))[1] and t.user_id = auth.uid()
+      )
     )
   );
 

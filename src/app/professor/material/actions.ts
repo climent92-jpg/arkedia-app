@@ -93,3 +93,57 @@ export async function createMaterial(input: MaterialInput): Promise<ActionResult
   revalidatePath("/alumne/material");
   return { success: true };
 }
+
+export async function deleteMaterial(materialId: string): Promise<ActionResult> {
+  try {
+    await requireProfile("professor");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  const supabase = await createClient();
+  const { data: material } = await supabase
+    .from("materials")
+    .select("storage_path")
+    .eq("id", materialId)
+    .maybeSingle();
+
+  const { error } = await supabase.from("materials").delete().eq("id", materialId);
+  if (error) return { success: false, error: error.message };
+
+  if (material?.storage_path) {
+    await supabase.storage.from("materials").remove([material.storage_path]);
+  }
+
+  revalidatePath("/professor/material");
+  revalidatePath("/alumne/material");
+  return { success: true };
+}
+
+// No filtrem per teacher_id: la policy RLS "submitted_videos_delete_teacher"
+// ja permet actuar a qualsevol professor assignat a l'alumne.
+export async function deleteSubmittedVideo(videoId: string): Promise<ActionResult> {
+  try {
+    await requireProfile("professor");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  const supabase = await createClient();
+  const { data: video } = await supabase
+    .from("submitted_videos")
+    .select("storage_path")
+    .eq("id", videoId)
+    .maybeSingle();
+
+  const { error } = await supabase.from("submitted_videos").delete().eq("id", videoId);
+  if (error) return { success: false, error: error.message };
+
+  if (video?.storage_path) {
+    await supabase.storage.from("submitted-videos").remove([video.storage_path]);
+  }
+
+  revalidatePath("/professor/material");
+  revalidatePath("/alumne/material");
+  return { success: true };
+}
