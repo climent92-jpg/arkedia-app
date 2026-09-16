@@ -3,9 +3,9 @@ import {
   AlertTriangle,
   CalendarDays,
   GraduationCap,
+  Megaphone,
   Music4,
   UploadCloud,
-  Users,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,10 +56,15 @@ export default async function AdminPanellPage() {
   const [stats, teachers] = await Promise.all([getAdminStats(), getAllTeachers()]);
 
   const statCards = [
-    { label: "Professors", value: stats.teachers, icon: Music4 },
-    { label: "Alumnes", value: stats.students, icon: GraduationCap },
-    { label: "Classes / setmana", value: stats.schedules, icon: CalendarDays },
-    { label: "Usuaris totals", value: stats.users, icon: Users },
+    { label: "Professors", value: stats.teachers, icon: Music4, href: "/admin/usuaris" },
+    { label: "Alumnes", value: stats.students, icon: GraduationCap, href: "/admin/usuaris" },
+    {
+      label: "Classes / setmana",
+      value: stats.schedules,
+      icon: CalendarDays,
+      href: "/admin/horaris",
+    },
+    { label: "Avisos", value: stats.announcements, icon: Megaphone, href: "/admin/avisos" },
   ];
 
   return (
@@ -71,13 +76,15 @@ export default async function AdminPanellPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {statCards.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-4">
-              <s.icon className="size-5 text-arkedia-blue" />
-              <p className="mt-2 text-2xl font-extrabold">{s.value}</p>
-              <p className="text-xs font-semibold text-muted">{s.label}</p>
-            </CardContent>
-          </Card>
+          <Link key={s.label} href={s.href}>
+            <Card className="transition-colors hover:border-arkedia-blue">
+              <CardContent className="p-4">
+                <s.icon className="size-5 text-arkedia-blue" />
+                <p className="mt-2 text-2xl font-extrabold">{s.value}</p>
+                <p className="text-xs font-semibold text-muted">{s.label}</p>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
