@@ -177,19 +177,21 @@ export interface AdminStats {
   students: number;
   schedules: number;
   users: number;
+  announcements: number;
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
   if (!isAdminConfigured()) {
-    return { teachers: 0, students: 0, schedules: 0, users: 0 };
+    return { teachers: 0, students: 0, schedules: 0, users: 0, announcements: 0 };
   }
 
   const supabase = createAdminClient();
-  const [teachers, students, schedules, users] = await Promise.all([
+  const [teachers, students, schedules, users, announcements] = await Promise.all([
     supabase.from("teachers").select("id", { count: "exact", head: true }),
     supabase.from("students").select("id", { count: "exact", head: true }),
     supabase.from("schedules").select("id", { count: "exact", head: true }),
     supabase.from("users").select("id", { count: "exact", head: true }),
+    supabase.from("announcements").select("id", { count: "exact", head: true }),
   ]);
 
   return {
@@ -197,5 +199,6 @@ export async function getAdminStats(): Promise<AdminStats> {
     students: students.count ?? 0,
     schedules: schedules.count ?? 0,
     users: users.count ?? 0,
+    announcements: announcements.count ?? 0,
   };
 }

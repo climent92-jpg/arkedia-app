@@ -50,10 +50,20 @@ export default async function AlumneXatPage() {
           </Link>
         ))}
 
-        {threads.length === 0 && (
+        {threads.length === 0 && teachers.length === 0 && (
           <Card>
             <CardContent className="p-6 text-center text-sm text-muted">
               Encara no tens cap professor/a assignat per poder xatejar-hi.
+            </CardContent>
+          </Card>
+        )}
+
+        {threads.length === 0 && teachers.length > 0 && (
+          <Card>
+            <CardContent className="p-6 text-center text-sm text-muted">
+              Tens {teachers.length} professor{teachers.length === 1 ? "" : "s"} assignat
+              {teachers.length === 1 ? "" : "s"}, però no s&apos;han pogut carregar les
+              converses. Torna-ho a provar en uns segons.
             </CardContent>
           </Card>
         )}

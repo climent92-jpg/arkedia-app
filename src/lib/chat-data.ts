@@ -28,8 +28,23 @@ async function ensureThread(
     .select("id")
     .single();
 
-  if (error || !inserted) return null;
-  return inserted.id;
+  if (inserted) return inserted.id;
+
+  // Dues peticions simultànies poden intentar crear el mateix fil (l'alumne
+  // i el professor obrint el xat alhora): si l'insert falla, no ho donem
+  // per perdut, tornem a consultar-lo per si l'altra petició ja l'ha creat.
+  if (error) {
+    const { data: retried } = await supabase
+      .from("message_threads")
+      .select("id")
+      .eq("student_id", studentId)
+      .eq("teacher_id", teacherId)
+      .maybeSingle();
+    if (retried) return retried.id;
+    console.error("No s'ha pogut crear el fil de xat:", error.message);
+  }
+
+  return null;
 }
 
 async function lastMessageOf(supabase: ChatClient, threadId: string) {
@@ -50,26 +65,27 @@ export async function getThreadsForStudent(
   teachers: { id: string; firstName: string; lastName: string }[]
 ): Promise<ChatThreadRow[]> {
   const supabase = await createClient();
-  const rows: ChatThreadRow[] = [];
 
-  for (const teacher of teachers) {
-    const threadId = await ensureThread(supabase, studentId, teacher.id);
-    if (!threadId) continue;
-    const last = await lastMessageOf(supabase, threadId);
-    rows.push({
-      id: threadId,
-      studentId,
-      studentFirstName: "",
-      studentLastName: "",
-      teacherId: teacher.id,
-      teacherFirstName: teacher.firstName,
-      teacherLastName: teacher.lastName,
-      lastMessage: last?.body ?? null,
-      lastMessageAt: last?.created_at ?? null,
-    });
-  }
+  const rows = await Promise.all(
+    teachers.map(async (teacher) => {
+      const threadId = await ensureThread(supabase, studentId, teacher.id);
+      if (!threadId) return null;
+      const last = await lastMessageOf(supabase, threadId);
+      return {
+        id: threadId,
+        studentId,
+        studentFirstName: "",
+        studentLastName: "",
+        teacherId: teacher.id,
+        teacherFirstName: teacher.firstName,
+        teacherLastName: teacher.lastName,
+        lastMessage: last?.body ?? null,
+        lastMessageAt: last?.created_at ?? null,
+      };
+    })
+  );
 
-  return rows;
+  return rows.filter((r): r is NonNullable<typeof r> => r !== null);
 }
 
 // Una conversa per a cada alumne assignat al professor.
@@ -78,26 +94,27 @@ export async function getThreadsForTeacher(
   students: { id: string; firstName: string; lastName: string }[]
 ): Promise<ChatThreadRow[]> {
   const supabase = await createClient();
-  const rows: ChatThreadRow[] = [];
 
-  for (const student of students) {
-    const threadId = await ensureThread(supabase, student.id, teacherId);
-    if (!threadId) continue;
-    const last = await lastMessageOf(supabase, threadId);
-    rows.push({
-      id: threadId,
-      studentId: student.id,
-      studentFirstName: student.firstName,
-      studentLastName: student.lastName,
-      teacherId,
-      teacherFirstName: "",
-      teacherLastName: "",
-      lastMessage: last?.body ?? null,
-      lastMessageAt: last?.created_at ?? null,
-    });
-  }
+  const rows = await Promise.all(
+    students.map(async (student) => {
+      const threadId = await ensureThread(supabase, student.id, teacherId);
+      if (!threadId) return null;
+      const last = await lastMessageOf(supabase, threadId);
+      return {
+        id: threadId,
+        studentId: student.id,
+        studentFirstName: student.firstName,
+        studentLastName: student.lastName,
+        teacherId,
+        teacherFirstName: "",
+        teacherLastName: "",
+        lastMessage: last?.body ?? null,
+        lastMessageAt: last?.created_at ?? null,
+      };
+    })
+  );
 
-  return rows;
+  return rows.filter((r): r is NonNullable<typeof r> => r !== null);
 }
 
 // Retorna el fil si l'usuari hi té accés (via RLS; si no, "select" ja
