@@ -113,6 +113,27 @@ export async function updateUser(
   return ok();
 }
 
+export async function updateUserPassword(id: string, newPassword: string): Promise<ActionResult> {
+  try {
+    await requireAdminProfile();
+  } catch {
+    return fail("No autoritzat.");
+  }
+
+  if (newPassword.trim().length < 6) {
+    return fail("La contrasenya ha de tenir com a mínim 6 caràcters.");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin.auth.admin.updateUserById(id, {
+    password: newPassword.trim(),
+  });
+
+  if (error) return fail(error.message);
+
+  return ok();
+}
+
 export async function deleteUser(id: string): Promise<ActionResult> {
   let caller;
   try {

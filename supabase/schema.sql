@@ -748,14 +748,20 @@ create policy "messages_insert_participant" on public.messages
 -- Storage: buckets per a partitures/vídeos del professor i vídeos dels
 -- alumnes. Privats (public = false): tot l'accés passa per les policies
 -- d'aquí sota, no per una URL pública directa.
+--
+-- file_size_limit es fixa explícitament a 200 MB (209715200 bytes) perquè
+-- no depengui del límit per defecte del projecte de Supabase (sovint més
+-- baix): sense això, un vídeo gravat amb el mòbil pot rebutjar-se a
+-- Storage encara que el codi de Next.js ja el pugi directament des del
+-- navegador (mai passa per cap Server Action).
 -- ----------------------------------------------------------------------------
-insert into storage.buckets (id, name, public)
-values ('materials', 'materials', false)
-on conflict (id) do nothing;
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('materials', 'materials', false, 209715200)
+on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
-insert into storage.buckets (id, name, public)
-values ('submitted-videos', 'submitted-videos', false)
-on conflict (id) do nothing;
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('submitted-videos', 'submitted-videos', false, 209715200)
+on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
 -- Convenció de camins: "materials/<teacher_id>/<fitxer>" — el professor
 -- propietari hi pot pujar i llegir; qui pugui veure la fila corresponent a

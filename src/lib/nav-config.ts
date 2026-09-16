@@ -6,6 +6,7 @@ import {
   MessageCircle,
   Megaphone,
   UploadCloud,
+  User,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -35,6 +36,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { href: "/alumne/material", label: "Material", icon: FolderOpen },
     { href: "/alumne/xat", label: "Xat", icon: MessageCircle },
     { href: "/alumne/avisos", label: "Avisos", icon: Megaphone },
+    { href: "/alumne/perfil", label: "Perfil", icon: User },
   ],
   professor: [
     { href: "/professor", label: "Agenda", icon: CalendarDays },
