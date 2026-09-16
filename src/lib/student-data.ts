@@ -8,7 +8,6 @@ import type {
   StudentAssignmentRow,
   StudentMaterialRow,
   StudentScheduleRow,
-  StudentSubmittedVideoRow,
   StudentTeacherRow,
 } from "@/types";
 
@@ -237,27 +236,3 @@ export async function getMyAnnouncements(): Promise<AnnouncementRow[]> {
   }));
 }
 
-export async function getMySubmittedVideos(
-  studentId: string
-): Promise<StudentSubmittedVideoRow[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("submitted_videos")
-    .select("id, title, student_note, storage_path, reviewed, teacher_comment, created_at")
-    .eq("student_id", studentId)
-    .order("created_at", { ascending: false });
-
-  if (error || !data) return [];
-
-  return Promise.all(
-    data.map(async (v) => ({
-      id: v.id,
-      title: v.title,
-      studentNote: v.student_note,
-      reviewed: v.reviewed,
-      teacherComment: v.teacher_comment,
-      url: await getSignedUrl(supabase, "submitted_videos", v.storage_path),
-      createdAt: v.created_at,
-    }))
-  );
-}
