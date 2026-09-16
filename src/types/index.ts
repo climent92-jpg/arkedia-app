@@ -228,18 +228,6 @@ export interface ProfessorMaterialRow {
   createdAt: string;
 }
 
-export interface ProfessorSubmittedVideoRow {
-  id: string;
-  studentId: string;
-  studentName: string;
-  title: string;
-  studentNote: string | null;
-  reviewed: boolean;
-  teacherComment: string | null;
-  url: string | null;
-  createdAt: string;
-}
-
 export interface ProfessorAssignmentRow {
   id: string;
   studentId: string;
@@ -305,16 +293,6 @@ export interface StudentMaterialRow {
   teacherFirstName: string;
   teacherLastName: string;
   url: string | null;
-}
-
-export interface StudentSubmittedVideoRow {
-  id: string;
-  title: string;
-  studentNote: string | null;
-  reviewed: boolean;
-  teacherComment: string | null;
-  url: string | null;
-  createdAt: string;
 }
 
 // Avisos, tal com els veu el professorat (/professor/avisos) o les famílies

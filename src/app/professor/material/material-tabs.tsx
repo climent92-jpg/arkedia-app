@@ -2,75 +2,40 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FileText, Plus, Trash2, X } from "lucide-react";
+import { FileText, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { VideoPlayer } from "@/components/video-player";
 import { uploadToStorage } from "@/lib/storage-upload";
-import {
-  createMaterial,
-  deleteMaterial,
-  deleteSubmittedVideo,
-  updateSubmittedVideoReview,
-} from "./actions";
-import type { ProfessorMaterialRow, ProfessorStudentRow, ProfessorSubmittedVideoRow } from "@/types";
+import { createMaterial, deleteMaterial } from "./actions";
+import type { ProfessorMaterialRow, ProfessorStudentRow } from "@/types";
 
 export function MaterialTabs({
   teacherId,
   students,
   initialMaterials,
-  initialSubmittedVideos,
 }: {
   teacherId: string;
   students: ProfessorStudentRow[];
   initialMaterials: ProfessorMaterialRow[];
-  initialSubmittedVideos: ProfessorSubmittedVideoRow[];
 }) {
   return (
-    <Tabs defaultValue="penjat">
-      <TabsList>
-        <TabsTrigger value="penjat">Material penjat</TabsTrigger>
-        <TabsTrigger value="revisar">
-          Vídeos alumnes
-          {initialSubmittedVideos.some((v) => !v.reviewed) && (
-            <span className="ml-1 inline-block size-1.5 rounded-full bg-arkedia-accent" />
-          )}
-        </TabsTrigger>
-      </TabsList>
+    <div className="flex flex-col gap-2.5">
+      <UploadMaterialForm teacherId={teacherId} students={students} />
 
-      <TabsContent value="penjat" className="flex flex-col gap-2.5">
-        <UploadMaterialForm teacherId={teacherId} students={students} />
+      {initialMaterials.map((m) => (
+        <MaterialCard key={m.id} material={m} />
+      ))}
 
-        {initialMaterials.map((m) => (
-          <MaterialCard key={m.id} material={m} />
-        ))}
-
-        {initialMaterials.length === 0 && (
-          <Card>
-            <CardContent className="p-6 text-center text-sm text-muted">
-              Encara no has penjat cap material.
-            </CardContent>
-          </Card>
-        )}
-      </TabsContent>
-
-      <TabsContent value="revisar" className="flex flex-col gap-4">
-        {initialSubmittedVideos.map((v) => (
-          <SubmittedVideoCard key={v.id} video={v} />
-        ))}
-
-        {initialSubmittedVideos.length === 0 && (
-          <Card>
-            <CardContent className="p-6 text-center text-sm text-muted">
-              Cap alumne ha enviat vídeos encara.
-            </CardContent>
-          </Card>
-        )}
-      </TabsContent>
-    </Tabs>
+      {initialMaterials.length === 0 && (
+        <Card>
+          <CardContent className="p-6 text-center text-sm text-muted">
+            Encara no has penjat cap material.
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
@@ -118,95 +83,6 @@ function MaterialCard({ material }: { material: ProfessorMaterialRow }) {
         >
           <Trash2 className="size-4" />
         </button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SubmittedVideoCard({ video }: { video: ProfessorSubmittedVideoRow }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [comment, setComment] = useState(video.teacherComment ?? "");
-  const [error, setError] = useState<string | null>(null);
-
-  function toggleReviewed() {
-    setError(null);
-    startTransition(async () => {
-      const result = await updateSubmittedVideoReview(video.id, {
-        reviewed: !video.reviewed,
-        teacherComment: comment,
-      });
-      if (!result.success) {
-        setError(result.error ?? "No s'ha pogut desar.");
-        return;
-      }
-      router.refresh();
-    });
-  }
-
-  function remove() {
-    if (!confirm(`Eliminar el vídeo "${video.title}"?`)) return;
-    startTransition(async () => {
-      const result = await deleteSubmittedVideo(video.id);
-      if (!result.success) {
-        alert(result.error ?? "No s'ha pogut eliminar.");
-        return;
-      }
-      router.refresh();
-    });
-  }
-
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-3 p-4">
-        <VideoPlayer src={video.url ?? "#"} title={video.title} />
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <p className="font-bold">{video.title}</p>
-            <p className="text-sm text-muted">{video.studentName}</p>
-            {video.studentNote && (
-              <p className="mt-1 text-sm text-muted italic">&quot;{video.studentNote}&quot;</p>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Badge variant={video.reviewed ? "success" : "warning"}>
-              {video.reviewed ? "Revisat" : "Pendent"}
-            </Badge>
-            <button
-              onClick={remove}
-              disabled={pending}
-              className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
-              aria-label="Eliminar"
-            >
-              <Trash2 className="size-4" />
-            </button>
-          </div>
-        </div>
-        <Textarea
-          rows={2}
-          placeholder="Escriu un comentari o valoració..."
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-        />
-        {error && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-            {error}
-          </p>
-        )}
-        <Button
-          variant={video.reviewed ? "outline" : "default"}
-          size="sm"
-          onClick={toggleReviewed}
-          disabled={pending}
-          className="self-start"
-        >
-          <CheckCircle2 className="size-4" />
-          {pending
-            ? "Desant..."
-            : video.reviewed
-              ? "Marcar com a pendent"
-              : "Marcar com a revisat"}
-        </Button>
       </CardContent>
     </Card>
   );
