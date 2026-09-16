@@ -241,13 +241,19 @@ alter table public.students
 alter table public.schedules
   add column if not exists teacher_id uuid references public.teachers (id) on delete cascade,
   add column if not exists student_id uuid references public.students (id) on delete cascade,
-  add column if not exists weekday weekday,
+  add column if not exists weekday weekday not null default 'Dilluns',
   add column if not exists start_time time,
   add column if not exists end_time time,
   add column if not exists instrument text not null default '',
   add column if not exists modality class_modality not null default 'Individual',
   add column if not exists room text,
   add column if not exists created_at timestamptz not null default now();
+
+-- Un cop la columna existeix i totes les files ja tenen un valor, traiem el
+-- valor per defecte: weekday sempre s'ha d'indicar explícitament (com a la
+-- definició original de la taula), el default de dalt només era per poder
+-- afegir la columna sense trencar files existents.
+alter table public.schedules alter column weekday drop default;
 
 alter table public.assignments
   add column if not exists student_id uuid references public.students (id) on delete cascade,
