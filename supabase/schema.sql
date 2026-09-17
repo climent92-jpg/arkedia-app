@@ -120,6 +120,8 @@ create table if not exists public.assignments (
   submission_video_path text, -- ex: "<student_id>/<uuid>-<filename>" al bucket submitted_videos
   submission_note text, -- nota opcional de l'alumne en entregar el vídeo
   submitted_at timestamptz,
+  teacher_feedback text, -- correcció escrita del professor sobre el vídeo rebut
+  feedback_at timestamptz, -- moment en què el professor ha enviat el feedback (i s'ha esborrat el vídeo)
   created_at timestamptz not null default now()
 );
 
@@ -271,6 +273,8 @@ alter table public.assignments
   add column if not exists submission_video_path text,
   add column if not exists submission_note text,
   add column if not exists submitted_at timestamptz,
+  add column if not exists teacher_feedback text,
+  add column if not exists feedback_at timestamptz,
   add column if not exists created_at timestamptz not null default now();
 
 alter table public.materials

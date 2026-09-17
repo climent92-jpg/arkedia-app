@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2, Video, X } from "lucide-react";
+import { Pencil, Plus, ShieldCheck, Trash2, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { VideoPlayer } from "@/components/video-player";
-import { createAssignment, deleteAssignment, updateAssignment } from "./actions";
+import { createAssignment, deleteAssignment, submitTeacherFeedback, updateAssignment } from "./actions";
 import type { ProfessorAssignmentRow, ProfessorStudentRow } from "@/types";
 
 function emptyForm(students: ProfessorStudentRow[]) {
@@ -214,9 +214,15 @@ export function AssignmentsManager({
                   </Badge>
                 )}
                 {a.requiresVideo && (
-                  <Badge variant={a.submissionVideoUrl ? "success" : "outline"}>
+                  <Badge
+                    variant={a.submissionVideoUrl || a.teacherFeedback ? "success" : "outline"}
+                  >
                     <Video className="size-3" />
-                    {a.submissionVideoUrl ? "Vídeo rebut" : "Vídeo pendent"}
+                    {a.teacherFeedback
+                      ? "Vídeo revisat"
+                      : a.submissionVideoUrl
+                        ? "Vídeo rebut"
+                        : "Vídeo pendent"}
                   </Badge>
                 )}
               </div>
@@ -227,6 +233,18 @@ export function AssignmentsManager({
                   {a.submissionNote && (
                     <p className="text-sm text-muted italic">&quot;{a.submissionNote}&quot;</p>
                   )}
+                  <TeacherFeedbackForm assignment={a} />
+                </div>
+              )}
+
+              {!a.submissionVideoUrl && a.teacherFeedback && (
+                <div className="mt-3 flex flex-col gap-2 rounded-xl bg-arkedia-blue-light/40 p-3">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-arkedia-blue">
+                    <ShieldCheck className="size-3.5" />
+                    Vídeo revisat i eliminat (Estatut de privacitat i espai)
+                  </div>
+                  <p className="text-sm font-semibold">Feedback enviat:</p>
+                  <p className="text-sm text-muted whitespace-pre-wrap">{a.teacherFeedback}</p>
                 </div>
               )}
             </CardContent>
@@ -241,6 +259,55 @@ export function AssignmentsManager({
           </Card>
         )}
       </div>
+    </div>
+  );
+}
+
+function TeacherFeedbackForm({ assignment }: { assignment: ProfessorAssignmentRow }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [feedback, setFeedback] = useState(assignment.teacherFeedback ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  function send() {
+    if (!feedback.trim()) {
+      setError("Escriu un feedback abans d'enviar-lo.");
+      return;
+    }
+    if (
+      !confirm(
+        "En enviar el feedback, el vídeo de l'alumne s'eliminarà definitivament de l'emmagatzematge. Continuar?"
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await submitTeacherFeedback(assignment.id, { feedback });
+      if (!result.success) {
+        setError(result.error ?? "No s'ha pogut enviar el feedback.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor={`feedback-${assignment.id}`}>Feedback / Correcció</Label>
+      <Textarea
+        id={`feedback-${assignment.id}`}
+        rows={2}
+        placeholder="Escriu la correcció o el comentari per a l'alumne..."
+        value={feedback}
+        onChange={(e) => setFeedback(e.target.value)}
+      />
+      <Button size="sm" className="self-start" onClick={send} disabled={pending}>
+        {pending ? "Enviant..." : "Enviar feedback"}
+      </Button>
+      {error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>
+      )}
     </div>
   );
 }

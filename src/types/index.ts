@@ -240,6 +240,9 @@ export interface ProfessorAssignmentRow {
   requiresVideo: boolean;
   submissionVideoUrl: string | null;
   submissionNote: string | null;
+  submittedAt: string | null;
+  teacherFeedback: string | null;
+  feedbackAt: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +286,9 @@ export interface StudentAssignmentRow {
   requiresVideo: boolean;
   submissionVideoUrl: string | null;
   submissionNote: string | null;
+  submittedAt: string | null;
+  teacherFeedback: string | null;
+  feedbackAt: string | null;
 }
 
 export interface StudentMaterialRow {
