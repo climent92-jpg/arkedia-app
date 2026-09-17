@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/page-header";
+import { RefreshNavBadges } from "@/components/refresh-nav-badges";
 import { getMyAssignments, getMyStudents, getMyTeacherProfile } from "@/lib/professor-data";
 import { NoTeacherProfile } from "@/app/professor/page";
 import { AssignmentsManager } from "./assignments-manager";
@@ -25,6 +26,7 @@ export default async function ProfessorDeuresPage() {
 
   return (
     <div>
+      <RefreshNavBadges />
       <PageHeader title="Deures" description="Assigna tasques i exercicis setmanals." />
       <AssignmentsManager students={students} assignments={assignments} />
     </div>
