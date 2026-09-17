@@ -15,49 +15,53 @@ export interface NavBadges {
 }
 
 const NO_BADGES: NavBadges = { deures: 0, material: 0, avisos: 0, xat: 0 };
-const MATERIAL_RECENT_DAYS = 7;
 
 function isMissingColumn(error: { message: string } | null) {
   return !!error && error.message.toLowerCase().includes("could not find the");
 }
 
-async function countRecentMaterial(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const cutoff = new Date(Date.now() - MATERIAL_RECENT_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  // La RLS ("materials_select_family" / "materials_select_teacher") ja
-  // limita aquesta consulta a les files que l'usuari connectat pot veure.
-  const { count, error } = await supabase
-    .from("materials")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", cutoff);
-  return error ? 0 : (count ?? 0);
-}
-
-async function countUnseenAnnouncements(
+// Compta files d'una taula creades després de l'últim cop que l'usuari ha
+// obert la secció corresponent (avisos_last_seen_at / material_last_seen_at
+// a public.users) — el mateix mecanisme per a totes dues seccions.
+async function countSinceLastSeen(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string
+  userId: string,
+  lastSeenColumn: "avisos_last_seen_at" | "material_last_seen_at",
+  table: "announcements" | "materials"
 ) {
   const { data: userRow, error: userError } = await supabase
     .from("users")
-    .select("avisos_last_seen_at")
+    .select(lastSeenColumn)
     .eq("id", userId)
     .maybeSingle();
 
   // Important: qualsevol error aquí (no només "columna no trobada") ens
   // impedeix saber quan ha estat l'última visita — i sense aquesta dada NO
   // podem distingir "encara no ha vist res" de "ja ho ha vist tot". Donar
-  // per fet que és null en cas d'error feia comptar TOTS els avisos com a
-  // no vistos cada cop que aquesta consulta fallava per qualsevol motiu
-  // transitori: l'origen més probable dels "avisos falsos" reportats.
+  // per fet que és null en cas d'error feia comptar TOT com a no vist cada
+  // cop que aquesta consulta fallava per qualsevol motiu transitori:
+  // l'origen més probable dels "avisos falsos" reportats.
   if (userError) return 0;
 
-  const lastSeen = userRow?.avisos_last_seen_at ?? null;
-  // La RLS ("announcements_select_family" / "announcements_select_teacher")
-  // ja limita aquesta consulta a l'audiència que li correspon a l'usuari.
-  let query = supabase.from("announcements").select("id", { count: "exact", head: true });
+  const lastSeen = (userRow as Record<string, string | null> | null)?.[lastSeenColumn] ?? null;
+  // La RLS de cada taula ja limita aquesta consulta al que li correspon a
+  // l'usuari (audiència d'avisos, o materials propis/generals).
+  let query = supabase.from(table).select("id", { count: "exact", head: true });
   if (lastSeen) query = query.gt("created_at", lastSeen);
 
   const { count, error } = await query;
   return error ? 0 : (count ?? 0);
+}
+
+function countUnseenAnnouncements(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+) {
+  return countSinceLastSeen(supabase, userId, "avisos_last_seen_at", "announcements");
+}
+
+function countUnseenMaterial(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  return countSinceLastSeen(supabase, userId, "material_last_seen_at", "materials");
 }
 
 async function countUnreadThreads(
@@ -99,23 +103,40 @@ async function countUnreadThreads(
   }, 0);
 }
 
-export async function getStudentNavBadges(studentId: string, userId: string): Promise<NavBadges> {
-  const supabase = await createClient();
-
-  const { count: pending, error: pendingError } = await supabase
+// Deures de l'alumne amb feedback nou que encara no ha obert /alumne/deures
+// des que el professor l'ha enviat.
+async function countUnseenFeedback(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  studentId: string
+) {
+  const { count, error } = await supabase
     .from("assignments")
     .select("id", { count: "exact", head: true })
     .eq("student_id", studentId)
-    .eq("done", false);
+    .not("feedback_at", "is", null)
+    .eq("feedback_seen", false);
+  return error ? 0 : (count ?? 0);
+}
 
-  const [material, avisos, xat] = await Promise.all([
-    countRecentMaterial(supabase),
+export async function getStudentNavBadges(studentId: string, userId: string): Promise<NavBadges> {
+  const supabase = await createClient();
+
+  const [pendingResult, unseenFeedback, material, avisos, xat] = await Promise.all([
+    supabase
+      .from("assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("student_id", studentId)
+      .eq("done", false),
+    countUnseenFeedback(supabase, studentId),
+    countUnseenMaterial(supabase, userId),
     countUnseenAnnouncements(supabase, userId),
     countUnreadThreads(supabase, userId, "familia"),
   ]);
 
+  const pending = pendingResult.error ? 0 : (pendingResult.count ?? 0);
+
   return {
-    deures: pendingError ? 0 : (pending ?? 0),
+    deures: pending + unseenFeedback,
     material,
     avisos,
     xat,
@@ -125,17 +146,20 @@ export async function getStudentNavBadges(studentId: string, userId: string): Pr
 export async function getTeacherNavBadges(teacherId: string, userId: string): Promise<NavBadges> {
   const supabase = await createClient();
 
+  // "submitted_at" es posa en enviar qualsevol tipus de resposta (vídeo,
+  // PDF o text): és el senyal genèric de "l'alumne ha entregat alguna cosa
+  // que encara no s'ha corregit", independent del submission_type del deure.
   const { count: toReview, error: toReviewError } = await supabase
     .from("assignments")
     .select("id", { count: "exact", head: true })
     .eq("teacher_id", teacherId)
-    .not("submission_video_path", "is", null)
+    .not("submitted_at", "is", null)
     .is("teacher_feedback", null);
 
   if (isMissingColumn(toReviewError)) return NO_BADGES;
 
   const [material, avisos, xat] = await Promise.all([
-    countRecentMaterial(supabase),
+    countUnseenMaterial(supabase, userId),
     countUnseenAnnouncements(supabase, userId),
     countUnreadThreads(supabase, userId, "professor"),
   ]);

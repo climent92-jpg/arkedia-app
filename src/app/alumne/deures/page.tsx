@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { RefreshNavBadges } from "@/components/refresh-nav-badges";
+import { MarkFeedbackSeen } from "@/components/mark-feedback-seen";
 import { getMyAssignments, getMyStudentProfile } from "@/lib/student-data";
 import { NoStudentProfile } from "@/app/alumne/agenda/page";
 import { DeuresList } from "./deures-list";
@@ -23,7 +23,7 @@ export default async function AlumneDeuresPage() {
 
   return (
     <div>
-      <RefreshNavBadges />
+      <MarkFeedbackSeen />
       <PageHeader title="Deures" description="El que cal practicar aquesta setmana." />
       <DeuresList assignments={assignments} studentId={student.id} />
     </div>

@@ -131,3 +131,168 @@ export async function submitAssignmentVideo(
     error: lastError ? formatDbError(lastError) : "No s'ha pogut desar el vídeo del deure.",
   };
 }
+
+// Desa el PDF de resposta d'un deure després que el navegador l'hagi pujat
+// a Supabase Storage (bucket "submitted_documents"). Mateix patró de
+// fallback en cascada que submitAssignmentVideo.
+export async function submitAssignmentPdf(
+  assignmentId: string,
+  input: { storagePath: string; note?: string }
+): Promise<ActionResult> {
+  try {
+    await requireProfile("familia");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  const student = await getMyStudentProfile();
+  if (!student) {
+    return { success: false, error: "El teu compte no té cap fitxa d'alumne vinculada." };
+  }
+
+  if (!input.storagePath) {
+    return { success: false, error: "Falta el document." };
+  }
+
+  const supabase = await createClient();
+
+  const attempts: Record<string, unknown>[] = [
+    {
+      submission_pdf_path: input.storagePath,
+      submission_note: input.note?.trim() || null,
+      submitted_at: new Date().toISOString(),
+      done: true,
+    },
+    {
+      submission_pdf_path: input.storagePath,
+      submission_note: input.note?.trim() || null,
+      done: true,
+    },
+    {
+      submission_pdf_path: input.storagePath,
+      done: true,
+    },
+    {
+      submission_pdf_path: input.storagePath,
+    },
+  ];
+
+  let lastError: { message: string; details?: string | null; hint?: string | null } | null = null;
+
+  for (const payload of attempts) {
+    const { error } = await supabase
+      .from("assignments")
+      .update(payload)
+      .eq("id", assignmentId)
+      .eq("student_id", student.id);
+
+    if (!error) {
+      revalidatePath("/alumne/deures");
+      revalidatePath("/professor/deures");
+      return { success: true };
+    }
+
+    console.error("submitAssignmentPdf: update ha fallat, provant un fallback", payload, error);
+    lastError = error;
+
+    if (!error.message.toLowerCase().includes("could not find the")) break;
+  }
+
+  return {
+    success: false,
+    error: lastError ? formatDbError(lastError) : "No s'ha pogut desar el document del deure.",
+  };
+}
+
+// Desa la resposta de text d'un deure directament a submission_note (no hi
+// ha cap fitxer de per mig).
+export async function submitAssignmentText(
+  assignmentId: string,
+  input: { text: string }
+): Promise<ActionResult> {
+  try {
+    await requireProfile("familia");
+  } catch {
+    return { success: false, error: "No autoritzat." };
+  }
+
+  const student = await getMyStudentProfile();
+  if (!student) {
+    return { success: false, error: "El teu compte no té cap fitxa d'alumne vinculada." };
+  }
+
+  const text = input.text.trim();
+  if (!text) {
+    return { success: false, error: "Escriu una resposta abans d'enviar-la." };
+  }
+
+  const supabase = await createClient();
+
+  const attempts: Record<string, unknown>[] = [
+    {
+      submission_note: text,
+      submitted_at: new Date().toISOString(),
+      done: true,
+    },
+    {
+      submission_note: text,
+      done: true,
+    },
+  ];
+
+  let lastError: { message: string; details?: string | null; hint?: string | null } | null = null;
+
+  for (const payload of attempts) {
+    const { error } = await supabase
+      .from("assignments")
+      .update(payload)
+      .eq("id", assignmentId)
+      .eq("student_id", student.id);
+
+    if (!error) {
+      revalidatePath("/alumne/deures");
+      revalidatePath("/professor/deures");
+      return { success: true };
+    }
+
+    console.error("submitAssignmentText: update ha fallat, provant un fallback", payload, error);
+    lastError = error;
+
+    if (!error.message.toLowerCase().includes("could not find the")) break;
+  }
+
+  return {
+    success: false,
+    error: lastError ? formatDbError(lastError) : "No s'ha pogut desar la resposta del deure.",
+  };
+}
+
+// Marca com a "vist" tot el feedback pendent de l'alumne (perquè el badge
+// de notificació de Deures baixi): es crida en obrir /alumne/deures. Si la
+// columna encara no existeix (esquema no remigrat), no fem res — el badge
+// simplement no funcionarà fins que es torni a executar schema.sql.
+export async function markAssignmentsFeedbackSeen(): Promise<void> {
+  let student;
+  try {
+    await requireProfile("familia");
+    student = await getMyStudentProfile();
+  } catch {
+    return;
+  }
+  if (!student) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("assignments")
+    .update({ feedback_seen: true })
+    .eq("student_id", student.id)
+    .not("feedback_at", "is", null)
+    .eq("feedback_seen", false);
+
+  if (error) {
+    console.error("markAssignmentsFeedbackSeen ha fallat", error);
+    return;
+  }
+
+  revalidatePath("/alumne/deures");
+}

@@ -11,6 +11,11 @@ export type Instrument =
 
 export type Modalitat = "Individual" | "Parelles" | "Col·lectiva";
 
+// Tipus de resposta que espera el professor per a un deure: vídeo pujat per
+// l'alumne, un PDF, una resposta escrita, o cap (només instruccions de
+// pràctica, amb un simple botó "Marcar com a fet").
+export type AssignmentSubmissionType = "video" | "pdf" | "text" | "none";
+
 export type DiaSetmana =
   | "Dilluns"
   | "Dimarts"
@@ -240,8 +245,9 @@ export interface ProfessorAssignmentRow {
   description: string | null;
   dueDate: string | null;
   done: boolean;
-  requiresVideo: boolean;
+  submissionType: AssignmentSubmissionType;
   submissionVideoUrl: string | null;
+  submissionPdfUrl: string | null;
   submissionNote: string | null;
   submittedAt: string | null;
   teacherFeedback: string | null;
@@ -286,12 +292,14 @@ export interface StudentAssignmentRow {
   teacherFirstName: string;
   dueDate: string | null;
   done: boolean;
-  requiresVideo: boolean;
+  submissionType: AssignmentSubmissionType;
   submissionVideoUrl: string | null;
+  submissionPdfUrl: string | null;
   submissionNote: string | null;
   submittedAt: string | null;
   teacherFeedback: string | null;
   feedbackAt: string | null;
+  feedbackSeen: boolean;
 }
 
 export interface StudentMaterialRow {
