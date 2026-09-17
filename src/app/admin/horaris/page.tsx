@@ -11,13 +11,11 @@ export default function AdminHorarisPage() {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState('Dilluns');
 
   const days = ['Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte'];
 
-  // 1. Carregar la llista de professors
   useEffect(() => {
     async function loadTeachers() {
       const { data } = await supabase.from('profiles').select('id, full_name, email');
@@ -29,14 +27,11 @@ export default function AdminHorarisPage() {
     loadTeachers();
   }, []);
 
-  // 2. Carregar els horaris quan canvia el professor seleccionat
   const fetchSchedules = async () => {
-    if (!selectedTeacher) return;
     setLoading(true);
     const { data, error } = await supabase
       .from('schedules')
       .select('*')
-      .eq('teacher_id', selectedTeacher)
       .order('start_time', { ascending: true });
 
     if (!error && data) {
@@ -47,7 +42,7 @@ export default function AdminHorarisPage() {
 
   useEffect(() => {
     fetchSchedules();
-  }, [selectedTeacher]);
+  }, []);
 
   const handleOpenModal = (day: string) => {
     setSelectedDay(day);
@@ -69,7 +64,6 @@ export default function AdminHorarisPage() {
         </button>
       </div>
 
-      {/* Desplegable de Professors */}
       <div className="max-w-xs">
         <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Professor</label>
         <select
@@ -85,12 +79,13 @@ export default function AdminHorarisPage() {
         </select>
       </div>
 
-      {/* Graella per dies */}
       <div className="space-y-6">
         {days.map((day) => {
-          const daySchedules = schedules.filter(
-            (s) => (s.weekday || s.day_of_week) === day
-          );
+          const daySchedules = schedules.filter((s) => {
+            const matchDay = (s.weekday || s.day_of_week) === day;
+            const matchTeacher = !selectedTeacher || String(s.teacher_id) === String(selectedTeacher);
+            return matchDay && matchTeacher;
+          });
 
           return (
             <div key={day} className="bg-white rounded-xl border p-4 shadow-sm space-y-3">
@@ -113,7 +108,7 @@ export default function AdminHorarisPage() {
                   {daySchedules.map((item) => (
                     <div
                       key={item.id}
-                      className="p-3 border rounded-lg bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center text-sm gap-2"
+                      className="p-3 border rounded-lg bg-gray-50 flex justify-between items-center text-sm"
                     >
                       <div>
                         <span className="font-semibold text-blue-900 mr-2">
@@ -126,10 +121,6 @@ export default function AdminHorarisPage() {
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {item.father_email && <div>Pare: {item.father_email}</div>}
-                        {item.mother_email && <div>Mare: {item.mother_email}</div>}
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -139,11 +130,11 @@ export default function AdminHorarisPage() {
         })}
       </div>
 
-      {/* Modal de Creació */}
       <ScheduleModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         defaultDay={selectedDay}
+        selectedTeacherId={selectedTeacher}
         onSuccess={fetchSchedules}
       />
     </div>
