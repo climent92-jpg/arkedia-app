@@ -2,14 +2,30 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, ShieldCheck, Trash2, Video, X } from "lucide-react";
+import { FileText, MessageSquareText, Pencil, Plus, ShieldCheck, Trash2, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { VideoPlayer } from "@/components/video-player";
 import { createAssignment, deleteAssignment, submitTeacherFeedback, updateAssignment } from "./actions";
-import type { ProfessorAssignmentRow, ProfessorStudentRow } from "@/types";
+import type { AssignmentSubmissionType, ProfessorAssignmentRow, ProfessorStudentRow } from "@/types";
+
+const SUBMISSION_TYPE_OPTIONS: { value: AssignmentSubmissionType; label: string }[] = [
+  { value: "none", label: "Només lectura / Indicacions" },
+  { value: "video", label: "Vídeo" },
+  { value: "pdf", label: "Document PDF" },
+  { value: "text", label: "Resposta de text" },
+];
+
+const SUBMISSION_TYPE_META: Record<
+  Exclude<AssignmentSubmissionType, "none">,
+  { icon: typeof Video; label: string; noun: string }
+> = {
+  video: { icon: Video, label: "Vídeo", noun: "el vídeo" },
+  pdf: { icon: FileText, label: "PDF", noun: "el document" },
+  text: { icon: MessageSquareText, label: "Resposta", noun: "la resposta" },
+};
 
 function emptyForm(students: ProfessorStudentRow[]) {
   return {
@@ -18,7 +34,7 @@ function emptyForm(students: ProfessorStudentRow[]) {
     title: "",
     description: "",
     dueDate: "",
-    requiresVideo: false,
+    submissionType: "none" as AssignmentSubmissionType,
   };
 }
 
@@ -48,7 +64,7 @@ export function AssignmentsManager({
       title: a.title,
       description: a.description ?? "",
       dueDate: a.dueDate ?? "",
-      requiresVideo: a.requiresVideo,
+      submissionType: a.submissionType,
     });
     setError(null);
     setShowForm(true);
@@ -61,7 +77,7 @@ export function AssignmentsManager({
       title: form.title,
       description: form.description,
       dueDate: form.dueDate,
-      requiresVideo: form.requiresVideo,
+      submissionType: form.submissionType,
     };
     startTransition(async () => {
       const result = form.id
@@ -148,15 +164,25 @@ export function AssignmentsManager({
               />
             </div>
 
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              <input
-                type="checkbox"
-                checked={form.requiresVideo}
-                onChange={(e) => setForm((f) => ({ ...f, requiresVideo: e.target.checked }))}
-                className="size-4 accent-arkedia-blue"
-              />
-              Requereix vídeo de resposta
-            </label>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="submission-type">Tipus de resposta de l&apos;alumne</Label>
+              <Select
+                id="submission-type"
+                value={form.submissionType}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    submissionType: e.target.value as AssignmentSubmissionType,
+                  }))
+                }
+              >
+                {SUBMISSION_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
 
             {error && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
@@ -213,40 +239,12 @@ export function AssignmentsManager({
                     })}
                   </Badge>
                 )}
-                {a.requiresVideo && (
-                  <Badge
-                    variant={a.submissionVideoUrl || a.teacherFeedback ? "success" : "outline"}
-                  >
-                    <Video className="size-3" />
-                    {a.teacherFeedback
-                      ? "Vídeo revisat"
-                      : a.submissionVideoUrl
-                        ? "Vídeo rebut"
-                        : "Vídeo pendent"}
-                  </Badge>
+                {a.submissionType !== "none" && (
+                  <SubmissionBadge assignment={a} />
                 )}
               </div>
 
-              {a.submissionVideoUrl && (
-                <div className="mt-3 flex flex-col gap-2">
-                  <VideoPlayer src={a.submissionVideoUrl} title={`Resposta de ${a.studentFirstName}`} />
-                  {a.submissionNote && (
-                    <p className="text-sm text-muted italic">&quot;{a.submissionNote}&quot;</p>
-                  )}
-                  <TeacherFeedbackForm assignment={a} />
-                </div>
-              )}
-
-              {!a.submissionVideoUrl && a.teacherFeedback && (
-                <div className="mt-3 flex flex-col gap-2 rounded-xl bg-arkedia-blue-light/40 p-3">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-arkedia-blue">
-                    <ShieldCheck className="size-3.5" />
-                    Vídeo revisat i eliminat (Estatut de privacitat i espai)
-                  </div>
-                  <p className="text-sm font-semibold">Feedback enviat:</p>
-                  <p className="text-sm text-muted whitespace-pre-wrap">{a.teacherFeedback}</p>
-                </div>
-              )}
+              <SubmissionSection assignment={a} />
             </CardContent>
           </Card>
         ))}
@@ -263,6 +261,85 @@ export function AssignmentsManager({
   );
 }
 
+function hasSubmittedContent(a: ProfessorAssignmentRow) {
+  return (
+    !!a.submissionVideoUrl ||
+    !!a.submissionPdfUrl ||
+    (a.submissionType === "text" && !!a.submissionNote)
+  );
+}
+
+function SubmissionBadge({ assignment: a }: { assignment: ProfessorAssignmentRow }) {
+  if (a.submissionType === "none") return null;
+  const meta = SUBMISSION_TYPE_META[a.submissionType];
+  const Icon = meta.icon;
+  const reviewed = !!a.teacherFeedback;
+  const submitted = hasSubmittedContent(a) || reviewed;
+  return (
+    <Badge variant={submitted ? "success" : "outline"}>
+      <Icon className="size-3" />
+      {reviewed ? `${meta.label} revisat` : hasSubmittedContent(a) ? `${meta.label} rebut` : `${meta.label} pendent`}
+    </Badge>
+  );
+}
+
+function SubmissionSection({ assignment: a }: { assignment: ProfessorAssignmentRow }) {
+  if (a.submissionType === "none") return null;
+
+  const hasVideo = !!a.submissionVideoUrl;
+  const hasPdf = !!a.submissionPdfUrl;
+  const hasText = a.submissionType === "text" && !!a.submissionNote;
+  const reviewed = !!a.teacherFeedback;
+  const fileRemovedAfterReview =
+    reviewed && (a.submissionType === "video" || a.submissionType === "pdf") && !hasVideo && !hasPdf;
+
+  if (!hasVideo && !hasPdf && !hasText && !reviewed) return null;
+
+  return (
+    <div className="mt-3 flex flex-col gap-2">
+      {hasVideo && (
+        <VideoPlayer src={a.submissionVideoUrl!} title={`Resposta de ${a.studentFirstName}`} />
+      )}
+      {hasPdf && (
+        <a
+          href={a.submissionPdfUrl!}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-arkedia-blue hover:bg-arkedia-blue-light/40"
+        >
+          <FileText className="size-4" />
+          Obrir el PDF de {a.studentFirstName}
+        </a>
+      )}
+      {hasText && (
+        <div className="rounded-xl border border-border bg-surface p-3">
+          <p className="whitespace-pre-wrap text-sm">{a.submissionNote}</p>
+        </div>
+      )}
+      {!hasText && a.submissionNote && (hasVideo || hasPdf) && (
+        <p className="text-sm text-muted italic">&quot;{a.submissionNote}&quot;</p>
+      )}
+
+      {fileRemovedAfterReview && (
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-arkedia-blue">
+          <ShieldCheck className="size-3.5" />
+          {SUBMISSION_TYPE_META[a.submissionType].label} revisat i eliminat (Estatut de
+          privacitat i espai)
+        </div>
+      )}
+
+      {!reviewed && (hasVideo || hasPdf || hasText) && <TeacherFeedbackForm assignment={a} />}
+
+      {reviewed && (
+        <div className="rounded-xl bg-arkedia-blue-light/40 p-3">
+          <p className="text-sm font-semibold">Feedback enviat:</p>
+          <p className="whitespace-pre-wrap text-sm text-muted">{a.teacherFeedback}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeacherFeedbackForm({ assignment }: { assignment: ProfessorAssignmentRow }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -274,12 +351,15 @@ function TeacherFeedbackForm({ assignment }: { assignment: ProfessorAssignmentRo
       setError("Escriu un feedback abans d'enviar-lo.");
       return;
     }
-    if (
-      !confirm(
-        "En enviar el feedback, el vídeo de l'alumne s'eliminarà definitivament de l'emmagatzematge. Continuar?"
-      )
-    ) {
-      return;
+    if (assignment.submissionType === "video" || assignment.submissionType === "pdf") {
+      const noun = SUBMISSION_TYPE_META[assignment.submissionType].noun;
+      if (
+        !confirm(
+          `En enviar el feedback, ${noun} de l'alumne s'eliminarà definitivament de l'emmagatzematge. Continuar?`
+        )
+      ) {
+        return;
+      }
     }
     setError(null);
     startTransition(async () => {

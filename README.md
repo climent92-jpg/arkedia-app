@@ -165,9 +165,9 @@ supabase/
    És idempotent: el pots tornar a executar sencer sobre una base de dades
    ja existent (afegeix columnes/policies que faltin sense trencar res ni
    duplicar dades) si actualitzes l'esquema més endavant.
-3. Aquest mateix script crea els buckets de Storage (`materials` i
-   `submitted-videos`, privats) i les seves policies — no cal crear-los a
-   mà des del panell de Storage.
+3. Aquest mateix script crea els buckets de Storage (`materials`,
+   `submitted_videos` i `submitted_documents`, tots privats) i les seves
+   policies — no cal crear-los a mà des del panell de Storage.
 4. Copia `.env.local.example` a `.env.local` i omple les tres variables (a
    Settings → API del projecte): `NEXT_PUBLIC_SUPABASE_URL`,
    `NEXT_PUBLIC_SUPABASE_ANON_KEY` i **`SUPABASE_SERVICE_ROLE_KEY`** (aquesta

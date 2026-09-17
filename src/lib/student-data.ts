@@ -110,31 +110,62 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
   const { data, error } = await supabase
     .from("assignments")
     .select(
-      "id, title, description, due_date, done, requires_video, submission_video_path, submission_note, submitted_at, teacher_feedback, feedback_at, teachers(first_name)"
+      "id, title, description, due_date, done, submission_type, submission_video_path, submission_pdf_path, submission_note, submitted_at, teacher_feedback, feedback_at, feedback_seen, teachers(first_name)"
     )
     .eq("student_id", studentId)
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("getMyAssignments: select amb columnes de vídeo ha fallat", error);
-    // Si l'esquema de Supabase encara no té les columnes noves de vídeo de
-    // resposta (requires_video/submission_video_path/submission_note/
-    // teacher_feedback/feedback_at), aquest select falla sencer i, sense
-    // aquest fallback, l'alumne no veuria CAP deure. Reintentem sense
-    // aquestes columnes perquè els deures sempre es puguin veure, encara
-    // que la funció de vídeo/feedback encara no funcioni.
-    const fallback = await supabase
+    console.error("getMyAssignments: select amb submission_type ha fallat", error);
+    // Si l'esquema encara no té submission_type/submission_pdf_path/
+    // feedback_seen (projecte no remigrat), reintentem amb les columnes
+    // anteriors (requires_video) i en derivem un submissionType equivalent.
+    const legacy = await supabase
+      .from("assignments")
+      .select(
+        "id, title, description, due_date, done, requires_video, submission_video_path, submission_note, submitted_at, teacher_feedback, feedback_at, teachers(first_name)"
+      )
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false });
+
+    if (!legacy.error && legacy.data) {
+      return Promise.all(
+        legacy.data.map(async (a) => {
+          const teacher = extractOne<{ first_name: string }>(a.teachers);
+          return {
+            id: a.id,
+            title: a.title,
+            description: a.description,
+            teacherFirstName: teacher?.first_name ?? "",
+            dueDate: a.due_date,
+            done: a.done,
+            submissionType: a.requires_video ? "video" : "none",
+            submissionVideoUrl: a.submission_video_path
+              ? await getSignedUrl(supabase, "submitted_videos", a.submission_video_path)
+              : null,
+            submissionPdfUrl: null,
+            submissionNote: a.submission_note,
+            submittedAt: a.submitted_at ?? null,
+            teacherFeedback: a.teacher_feedback ?? null,
+            feedbackAt: a.feedback_at ?? null,
+            feedbackSeen: true,
+          };
+        })
+      );
+    }
+
+    console.error("getMyAssignments: fallback amb requires_video també ha fallat", legacy.error);
+    // Esquema encara més antic: sense aquest fallback, l'alumne no veuria
+    // CAP deure.
+    const bare = await supabase
       .from("assignments")
       .select("id, title, description, due_date, done, teachers(first_name)")
       .eq("student_id", studentId)
       .order("created_at", { ascending: false });
 
-    if (fallback.error || !fallback.data) {
-      console.error("getMyAssignments: fallback també ha fallat", fallback.error);
-      return [];
-    }
+    if (bare.error || !bare.data) return [];
 
-    return fallback.data.map((a) => {
+    return bare.data.map((a) => {
       const teacher = extractOne<{ first_name: string }>(a.teachers);
       return {
         id: a.id,
@@ -143,12 +174,14 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
         teacherFirstName: teacher?.first_name ?? "",
         dueDate: a.due_date,
         done: a.done,
-        requiresVideo: false,
+        submissionType: "none" as const,
         submissionVideoUrl: null,
+        submissionPdfUrl: null,
         submissionNote: null,
         submittedAt: null,
         teacherFeedback: null,
         feedbackAt: null,
+        feedbackSeen: true,
       };
     });
   }
@@ -165,14 +198,18 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
         teacherFirstName: teacher?.first_name ?? "",
         dueDate: a.due_date,
         done: a.done,
-        requiresVideo: a.requires_video,
+        submissionType: a.submission_type,
         submissionVideoUrl: a.submission_video_path
           ? await getSignedUrl(supabase, "submitted_videos", a.submission_video_path)
+          : null,
+        submissionPdfUrl: a.submission_pdf_path
+          ? await getSignedUrl(supabase, "submitted_documents", a.submission_pdf_path)
           : null,
         submissionNote: a.submission_note,
         submittedAt: a.submitted_at ?? null,
         teacherFeedback: a.teacher_feedback ?? null,
         feedbackAt: a.feedback_at ?? null,
+        feedbackSeen: a.feedback_seen ?? true,
       };
     })
   );

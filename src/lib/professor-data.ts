@@ -222,30 +222,63 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
   const { data, error } = await supabase
     .from("assignments")
     .select(
-      "id, student_id, title, description, due_date, done, requires_video, submission_video_path, submission_note, submitted_at, teacher_feedback, feedback_at, students(first_name, last_name)"
+      "id, student_id, title, description, due_date, done, submission_type, submission_video_path, submission_pdf_path, submission_note, submitted_at, teacher_feedback, feedback_at, students(first_name, last_name)"
     )
     .eq("teacher_id", teacherId)
     .order("created_at", { ascending: false });
 
   if (error) {
-    console.error("getMyAssignments: select amb columnes de vídeo ha fallat", error);
-    // Igual que al costat de l'alumne: si l'esquema encara no té les
-    // columnes noves de vídeo de resposta / feedback, no deixem que això
-    // faci desaparèixer tota la llista de deures del professor.
-    const fallback = await supabase
+    console.error("getMyAssignments: select amb submission_type ha fallat", error);
+    // Si l'esquema encara no té submission_type/submission_pdf_path
+    // (projecte no remigrat després d'aquesta ronda), reintentem amb les
+    // columnes anteriors (requires_video) i en derivem un submissionType
+    // equivalent, en lloc de fer desaparèixer tota la llista de deures.
+    const legacy = await supabase
       .from("assignments")
       .select(
-        "id, student_id, title, description, due_date, done, students(first_name, last_name)"
+        "id, student_id, title, description, due_date, done, requires_video, submission_video_path, submission_note, submitted_at, teacher_feedback, feedback_at, students(first_name, last_name)"
       )
       .eq("teacher_id", teacherId)
       .order("created_at", { ascending: false });
 
-    if (fallback.error || !fallback.data) {
-      console.error("getMyAssignments: fallback també ha fallat", fallback.error);
-      return [];
+    if (!legacy.error && legacy.data) {
+      return Promise.all(
+        legacy.data.map(async (a) => {
+          const student = extractOne<{ first_name: string; last_name: string }>(a.students);
+          return {
+            id: a.id,
+            studentId: a.student_id,
+            studentFirstName: student?.first_name ?? "",
+            studentLastName: student?.last_name ?? "",
+            title: a.title,
+            description: a.description,
+            dueDate: a.due_date,
+            done: a.done,
+            submissionType: a.requires_video ? "video" : "none",
+            submissionVideoUrl: a.submission_video_path
+              ? await getSignedUrl(supabase, "submitted_videos", a.submission_video_path)
+              : null,
+            submissionPdfUrl: null,
+            submissionNote: a.submission_note,
+            submittedAt: a.submitted_at ?? null,
+            teacherFeedback: a.teacher_feedback ?? null,
+            feedbackAt: a.feedback_at ?? null,
+          };
+        })
+      );
     }
 
-    return fallback.data.map((a) => {
+    console.error("getMyAssignments: fallback amb requires_video també ha fallat", legacy.error);
+    // Esquema encara més antic: ni tan sols requires_video existeix.
+    const bare = await supabase
+      .from("assignments")
+      .select("id, student_id, title, description, due_date, done, students(first_name, last_name)")
+      .eq("teacher_id", teacherId)
+      .order("created_at", { ascending: false });
+
+    if (bare.error || !bare.data) return [];
+
+    return bare.data.map((a) => {
       const student = extractOne<{ first_name: string; last_name: string }>(a.students);
       return {
         id: a.id,
@@ -256,8 +289,9 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
         description: a.description,
         dueDate: a.due_date,
         done: a.done,
-        requiresVideo: false,
+        submissionType: "none" as const,
         submissionVideoUrl: null,
+        submissionPdfUrl: null,
         submissionNote: null,
         submittedAt: null,
         teacherFeedback: null,
@@ -280,9 +314,12 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
         description: a.description,
         dueDate: a.due_date,
         done: a.done,
-        requiresVideo: a.requires_video,
+        submissionType: a.submission_type,
         submissionVideoUrl: a.submission_video_path
           ? await getSignedUrl(supabase, "submitted_videos", a.submission_video_path)
+          : null,
+        submissionPdfUrl: a.submission_pdf_path
+          ? await getSignedUrl(supabase, "submitted_documents", a.submission_pdf_path)
           : null,
         submissionNote: a.submission_note,
         submittedAt: a.submitted_at ?? null,

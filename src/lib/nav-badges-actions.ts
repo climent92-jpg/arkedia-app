@@ -28,6 +28,21 @@ export async function markAvisosSeen(): Promise<void> {
   }
 }
 
+export async function markMaterialSeen(): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) return;
+
+  try {
+    const admin = createAdminClient();
+    await admin
+      .from("users")
+      .update({ material_last_seen_at: new Date().toISOString() })
+      .eq("id", profile.id);
+  } catch (error) {
+    console.error("markMaterialSeen ha fallat", error);
+  }
+}
+
 export async function markThreadRead(threadId: string): Promise<void> {
   const profile = await getCurrentProfile();
   if (!profile || (profile.role !== "familia" && profile.role !== "professor")) return;

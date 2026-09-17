@@ -31,6 +31,7 @@ create table if not exists public.users (
   phone text,
   avatar_url text,
   avisos_last_seen_at timestamptz, -- darrer cop que ha obert /avisos (badge de notificació)
+  material_last_seen_at timestamptz, -- darrer cop que ha obert /material (badge de notificació)
   created_at timestamptz not null default now()
 );
 
@@ -113,6 +114,12 @@ create table if not exists public.schedules (
 -- ----------------------------------------------------------------------------
 -- 5. ASSIGNMENTS — deures / tasques setmanals assignades per un professor.
 -- ----------------------------------------------------------------------------
+do $$ begin
+  create type assignment_submission_type as enum ('video', 'pdf', 'text', 'none');
+exception
+  when duplicate_object then null;
+end $$;
+
 create table if not exists public.assignments (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.students (id) on delete cascade,
@@ -122,12 +129,15 @@ create table if not exists public.assignments (
   assigned_at date not null default current_date,
   due_date date,
   done boolean not null default false,
-  requires_video boolean not null default false, -- el professor demana un vídeo de resposta
+  requires_video boolean not null default false, -- obsolet, substituït per submission_type; es manté per compatibilitat
+  submission_type assignment_submission_type not null default 'none', -- quin tipus de resposta espera el professor
   submission_video_path text, -- ex: "<student_id>/<uuid>-<filename>" al bucket submitted_videos
-  submission_note text, -- nota opcional de l'alumne en entregar el vídeo
+  submission_pdf_path text, -- ex: "<student_id>/<uuid>-<filename>" al bucket submitted_documents
+  submission_note text, -- resposta de text (submission_type = 'text') o nota opcional (video/pdf)
   submitted_at timestamptz,
-  teacher_feedback text, -- correcció escrita del professor sobre el vídeo rebut
-  feedback_at timestamptz, -- moment en què el professor ha enviat el feedback (i s'ha esborrat el vídeo)
+  teacher_feedback text, -- correcció escrita del professor sobre la resposta rebuda
+  feedback_at timestamptz, -- moment en què el professor ha enviat el feedback (i s'ha esborrat el fitxer)
+  feedback_seen boolean not null default true, -- l'alumne ha obert /alumne/deures des que hi ha feedback nou
   created_at timestamptz not null default now()
 );
 
@@ -228,6 +238,7 @@ alter table public.users
   add column if not exists phone text,
   add column if not exists avatar_url text,
   add column if not exists avisos_last_seen_at timestamptz,
+  add column if not exists material_last_seen_at timestamptz,
   add column if not exists created_at timestamptz not null default now();
 
 alter table public.teachers
@@ -280,11 +291,14 @@ alter table public.assignments
   add column if not exists due_date date,
   add column if not exists done boolean not null default false,
   add column if not exists requires_video boolean not null default false,
+  add column if not exists submission_type assignment_submission_type not null default 'none',
   add column if not exists submission_video_path text,
+  add column if not exists submission_pdf_path text,
   add column if not exists submission_note text,
   add column if not exists submitted_at timestamptz,
   add column if not exists teacher_feedback text,
   add column if not exists feedback_at timestamptz,
+  add column if not exists feedback_seen boolean not null default true,
   add column if not exists created_at timestamptz not null default now();
 
 alter table public.materials
@@ -822,6 +836,10 @@ insert into storage.buckets (id, name, public, file_size_limit)
 values ('submitted_videos', 'submitted_videos', false, 209715200)
 on conflict (id) do update set file_size_limit = excluded.file_size_limit;
 
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('submitted_documents', 'submitted_documents', false, 26214400)
+on conflict (id) do update set file_size_limit = excluded.file_size_limit;
+
 -- Convenció de camins: "materials/<teacher_id>/<fitxer>" — el professor
 -- propietari hi pot pujar i llegir; qui pugui veure la fila corresponent a
 -- public.materials (família inclosa, via materials_select_family) també en
@@ -911,6 +929,53 @@ drop policy if exists "submitted_videos_storage_select_participant" on storage.o
 create policy "submitted_videos_storage_select_participant" on storage.objects
   for select using (
     bucket_id = 'submitted_videos'
+    and (
+      public.is_admin()
+      or exists (
+        select 1 from public.students s
+        where s.id::text = (storage.foldername(name))[1] and s.family_user_id = auth.uid()
+      )
+      or exists (
+        select 1 from public.teachers t
+        join public.student_teachers st on st.teacher_id = t.id
+        where st.student_id::text = (storage.foldername(name))[1] and t.user_id = auth.uid()
+      )
+    )
+  );
+
+-- Mateixa convenció de camins i policies que submitted_videos, però per als
+-- deures amb submission_type = 'pdf'.
+drop policy if exists "submitted_documents_storage_insert_family" on storage.objects;
+create policy "submitted_documents_storage_insert_family" on storage.objects
+  for insert with check (
+    bucket_id = 'submitted_documents'
+    and exists (
+      select 1 from public.students s
+      where s.id::text = (storage.foldername(name))[1] and s.family_user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "submitted_documents_storage_delete_participant" on storage.objects;
+create policy "submitted_documents_storage_delete_participant" on storage.objects
+  for delete using (
+    bucket_id = 'submitted_documents'
+    and (
+      exists (
+        select 1 from public.students s
+        where s.id::text = (storage.foldername(name))[1] and s.family_user_id = auth.uid()
+      )
+      or exists (
+        select 1 from public.teachers t
+        join public.student_teachers st on st.teacher_id = t.id
+        where st.student_id::text = (storage.foldername(name))[1] and t.user_id = auth.uid()
+      )
+    )
+  );
+
+drop policy if exists "submitted_documents_storage_select_participant" on storage.objects;
+create policy "submitted_documents_storage_select_participant" on storage.objects
+  for select using (
+    bucket_id = 'submitted_documents'
     and (
       public.is_admin()
       or exists (

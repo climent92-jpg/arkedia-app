@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/page-header";
-import { RefreshNavBadges } from "@/components/refresh-nav-badges";
+import { MarkMaterialSeen } from "@/components/mark-material-seen";
 import { getMyMaterials, getMyStudents, getMyTeacherProfile } from "@/lib/professor-data";
 import { NoTeacherProfile } from "@/app/professor/page";
 import { MaterialTabs } from "./material-tabs";
@@ -26,7 +26,7 @@ export default async function ProfessorMaterialPage() {
 
   return (
     <div>
-      <RefreshNavBadges />
+      <MarkMaterialSeen />
       <PageHeader
         title="Material"
         description="Partitures, vídeos i àudios per als teus alumnes."
