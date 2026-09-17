@@ -7,12 +7,11 @@ export default function AdminHorarisPage() {
   const supabase = createClientComponentClient();
   const [teachers, setTeachers] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
-  const [selectedTeacher, setSelectedTeacher] = useState<string>('');
+  const [selectedTeacher, setSelectedTeacher] = useState<string>('all');
   const [schedules, setSchedules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
-  // Form state
   const [studentId, setStudentId] = useState('');
   const [weekday, setWeekday] = useState('Dilluns');
   const [startTime, setStartTime] = useState('16:00');
@@ -22,28 +21,34 @@ export default function AdminHorarisPage() {
 
   const ALL_DAYS = ['Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte'];
 
-  // 1. Carregar professors i alumnes
+  // Normalitzar el nom del dia per evitar errors de minúscules o idiomes
+  const normalizeDay = (dayStr: string) => {
+    if (!dayStr) return '';
+    const d = dayStr.toLowerCase().trim();
+    if (d.includes('luns') || d.includes('mon')) return 'Dilluns';
+    if (d.includes('marts') || d.includes('tue')) return 'Dimarts';
+    if (d.includes('mécres') || d.includes('mecres') || d.includes('wed')) return 'Dimecres';
+    if (d.includes('jous') || d.includes('thu')) return 'Dijous';
+    if (d.includes('vendres') || d.includes('fri')) return 'Divendres';
+    if (d.includes('sabte') || d.includes('sat')) return 'Dissabte';
+    return dayStr;
+  };
+
   useEffect(() => {
     async function loadUsers() {
       const { data } = await supabase.from('profiles').select('id, full_name, email, role');
       if (data) {
         setTeachers(data);
-        if (data.length > 0) setSelectedTeacher(data[0].id);
         setStudents(data);
       }
     }
     loadUsers();
   }, []);
 
-  // 2. Carregar horaris del professor seleccionat
   const fetchSchedules = async () => {
-    if (!selectedTeacher) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('schedules')
-      .select('*')
-      .eq('teacher_id', selectedTeacher);
-
+    // Carreguem TOTS els horaris sense filtrar a la petició
+    const { data, error } = await supabase.from('schedules').select('*');
     if (!error && data) {
       setSchedules(data);
     }
@@ -52,23 +57,23 @@ export default function AdminHorarisPage() {
 
   useEffect(() => {
     fetchSchedules();
-  }, [selectedTeacher]);
+  }, []);
 
-  // 3. Crear franja horària
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTeacher) return alert('Selecciona un professor primer.');
+    if (!selectedTeacher || selectedTeacher === 'all') {
+      return alert('Si us plau, selecciona un professor concret al desplegable superior.');
+    }
     if (!studentId) return alert('Selecciona un alumne.');
 
     setSaving(true);
-
     const student = students.find((s) => s.id === studentId);
     const studentName = student ? (student.full_name || student.email) : 'Alumne';
 
     const { error } = await supabase.from('schedules').insert([
       {
-        teacher_id: selectedTeacher, // Assignat correctament al professor actiu
-        student_id: studentId,       // Enllaçat directament al perfil de l'alumne
+        teacher_id: selectedTeacher,
+        student_id: studentId,
         title: studentName,
         weekday: weekday,
         day_of_week: weekday,
@@ -82,10 +87,10 @@ export default function AdminHorarisPage() {
     setSaving(false);
 
     if (error) {
-      alert('Error en crear la franja: ' + error.message);
+      alert('Error: ' + error.message);
     } else {
       setShowForm(false);
-      fetchSchedules(); // Actualitza la llista a l'instant
+      fetchSchedules();
     }
   };
 
@@ -104,14 +109,14 @@ export default function AdminHorarisPage() {
         </button>
       </div>
 
-      {/* Selector de Professor */}
-      <div className="max-w-xs">
+      <div className="max-w-md">
         <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Professor</label>
         <select
           value={selectedTeacher}
           onChange={(e) => setSelectedTeacher(e.target.value)}
-          className="w-full border rounded-lg p-2 text-sm bg-white shadow-sm"
+          className="w-full border rounded-lg p-2 text-sm bg-white shadow-sm font-medium"
         >
+          <option value="all">-- Mostrar TOTS els horaris (inclosos sense assignar) --</option>
           {teachers.map((t) => (
             <option key={t.id} value={t.id}>
               {t.full_name || t.email}
@@ -120,11 +125,10 @@ export default function AdminHorarisPage() {
         </select>
       </div>
 
-      {/* Formulari integrat */}
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white p-6 border rounded-xl shadow-md space-y-4">
           <h3 className="font-bold text-gray-800 border-b pb-2">Nova Franja Horària</h3>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-700 mb-1">Alumne</label>
@@ -199,21 +203,27 @@ export default function AdminHorarisPage() {
         </form>
       )}
 
-      {/* Llista d'horaris (Només mostra els dies AMB classe) */}
       <div className="space-y-4">
         {loading ? (
           <p className="text-sm text-gray-500">Carregant horaris...</p>
         ) : schedules.length === 0 ? (
           <div className="p-8 text-center bg-gray-50 rounded-xl border text-gray-500 text-sm">
-            Aquest professor no té cap classe assignada.
+            No s'ha trobat cap classe a la base de dades.
           </div>
         ) : (
           ALL_DAYS.map((day) => {
-            const daySchedules = schedules.filter(
-              (s) => (s.weekday || s.day_of_week) === day
-            );
+            const daySchedules = schedules.filter((s) => {
+              const sDay = normalizeDay(s.weekday || s.day_of_week);
+              const matchDay = sDay === day;
 
-            // Si el dia no té cap classe, no es mostra a la pantalla
+              const matchTeacher =
+                selectedTeacher === 'all' ||
+                !s.teacher_id ||
+                String(s.teacher_id) === String(selectedTeacher);
+
+              return matchDay && matchTeacher;
+            });
+
             if (daySchedules.length === 0) return null;
 
             return (
@@ -229,7 +239,7 @@ export default function AdminHorarisPage() {
                         <span className="font-semibold text-blue-900 mr-3">
                           {item.start_time} - {item.end_time}
                         </span>
-                        <span className="font-bold text-gray-800">{item.title}</span>
+                        <span className="font-bold text-gray-800">{item.title || 'Sense Nom'}</span>
                         {item.instrument && (
                           <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
                             {item.instrument}
