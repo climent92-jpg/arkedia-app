@@ -30,6 +30,8 @@ const DAY_MAP: Record<string, DiaSetmana> = {
   dv: "Divendres",
   dissabte: "Dissabte",
   ds: "Dissabte",
+  diumenge: "Diumenge",
+  dg: "Diumenge",
 };
 
 function stripAccents(s: string) {

@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   CalendarDays,
   CheckSquare,
   FolderOpen,
@@ -40,6 +41,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   ],
   professor: [
     { href: "/professor", label: "Agenda", icon: CalendarDays },
+    { href: "/professor/horaris", label: "Horaris", icon: CalendarClock },
     { href: "/professor/alumnes", label: "Alumnes", icon: Users },
     { href: "/professor/deures", label: "Deures", icon: CheckSquare },
     { href: "/professor/material", label: "Material", icon: FolderOpen },

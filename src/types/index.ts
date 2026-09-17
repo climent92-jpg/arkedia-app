@@ -17,7 +17,8 @@ export type DiaSetmana =
   | "Dimecres"
   | "Dijous"
   | "Divendres"
-  | "Dissabte";
+  | "Dissabte"
+  | "Diumenge";
 
 export interface Teacher {
   id: string;
@@ -151,6 +152,7 @@ export interface AdminScheduleRow {
   instrument: string;
   modality: Modalitat;
   room: string | null;
+  notes: string | null;
 }
 
 export interface AdminAnnouncementRow {
@@ -198,6 +200,7 @@ export interface ProfessorScheduleRow {
   instrument: string;
   modality: Modalitat;
   room: string | null;
+  notes: string | null;
   studentId: string;
   studentFirstName: string;
   studentLastName: string;

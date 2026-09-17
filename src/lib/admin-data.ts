@@ -144,12 +144,48 @@ export async function getAllSchedules(): Promise<AdminScheduleRow[]> {
   const { data, error } = await supabase
     .from("schedules")
     .select(
-      "id, teacher_id, student_id, weekday, start_time, end_time, instrument, modality, room, teachers(first_name, last_name), students(first_name, last_name)"
+      "id, teacher_id, student_id, weekday, start_time, end_time, instrument, modality, room, notes, teachers(first_name, last_name), students(first_name, last_name)"
     )
     .order("weekday", { ascending: true })
     .order("start_time", { ascending: true });
 
-  if (error || !data) return [];
+  if (error) {
+    console.error("getAllSchedules: select amb 'notes' ha fallat", error);
+    // Si l'esquema encara no té la columna notes (schema.sql no re-executat),
+    // no deixem que això faci desaparèixer tota la graella d'horaris.
+    const fallback = await supabase
+      .from("schedules")
+      .select(
+        "id, teacher_id, student_id, weekday, start_time, end_time, instrument, modality, room, teachers(first_name, last_name), students(first_name, last_name)"
+      )
+      .order("weekday", { ascending: true })
+      .order("start_time", { ascending: true });
+
+    if (fallback.error || !fallback.data) return [];
+
+    return fallback.data.map((s) => {
+      const teacher = extractOne<{ first_name: string; last_name: string }>(s.teachers);
+      const student = extractOne<{ first_name: string; last_name: string }>(s.students);
+      return {
+        id: s.id,
+        teacherId: s.teacher_id,
+        teacherFirstName: teacher?.first_name ?? "",
+        teacherLastName: teacher?.last_name ?? "",
+        studentId: s.student_id,
+        studentFirstName: student?.first_name ?? "",
+        studentLastName: student?.last_name ?? "",
+        weekday: s.weekday,
+        startTime: s.start_time,
+        endTime: s.end_time,
+        instrument: s.instrument,
+        modality: s.modality,
+        room: s.room,
+        notes: null,
+      };
+    });
+  }
+
+  if (!data) return [];
 
   return data.map((s) => {
     const teacher = extractOne<{ first_name: string; last_name: string }>(s.teachers);
@@ -168,6 +204,7 @@ export async function getAllSchedules(): Promise<AdminScheduleRow[]> {
       instrument: s.instrument,
       modality: s.modality,
       room: s.room,
+      notes: s.notes ?? null,
     };
   });
 }
