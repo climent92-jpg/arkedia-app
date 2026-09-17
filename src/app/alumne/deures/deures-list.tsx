@@ -270,11 +270,19 @@ function VideoSubmission({
         });
         setCompressProgress(null);
 
+        // Si toUpload.type ja ve informat (sempre és el cas quan
+        // compressVideo() ha reencodat a WebM, o quan el navegador sap
+        // detectar el vídeo original), uploadToStorage el fa servir tal
+        // qual; aquest fallback explícit només actua quan arriba buit (per
+        // exemple, alguns navegadors mòbils en gravar amb la càmera).
+        const fallbackContentType = toUpload.name.toLowerCase().endsWith(".webm")
+          ? "video/webm"
+          : "video/mp4";
         const uploaded = await uploadToStorage(
           "submitted_videos",
           studentId,
           toUpload,
-          "video/mp4"
+          fallbackContentType
         );
         if (uploaded.error || !uploaded.path) {
           const message = uploaded.error ?? "No s'ha pogut pujar el vídeo.";

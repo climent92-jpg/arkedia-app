@@ -298,7 +298,20 @@ function SubmissionSection({ assignment: a }: { assignment: ProfessorAssignmentR
   return (
     <div className="mt-3 flex flex-col gap-2">
       {hasVideo && (
-        <VideoPlayer src={a.submissionVideoUrl!} title={`Resposta de ${a.studentFirstName}`} />
+        <div className="flex flex-col gap-1.5">
+          <VideoPlayer src={a.submissionVideoUrl!} title={`Resposta de ${a.studentFirstName}`} />
+          {/* Opció de seguretat: si el <video> no es reprodueix inline per
+              qualsevol motiu (navegador, xarxa...), el professor sempre pot
+              obrir-lo/descarregar-lo directament en una pestanya nova. */}
+          <a
+            href={a.submissionVideoUrl!}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="self-start text-xs font-semibold text-arkedia-blue underline-offset-2 hover:underline"
+          >
+            Obrir el vídeo en una pestanya nova
+          </a>
+        </div>
       )}
       {hasPdf && (
         <a
