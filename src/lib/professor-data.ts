@@ -184,7 +184,7 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
   const { data, error } = await supabase
     .from("assignments")
     .select(
-      "id, student_id, title, description, due_date, done, requires_video, submission_video_path, submission_note, students(first_name, last_name)"
+      "id, student_id, title, description, due_date, done, requires_video, submission_video_path, submission_note, submitted_at, teacher_feedback, feedback_at, students(first_name, last_name)"
     )
     .eq("teacher_id", teacherId)
     .order("created_at", { ascending: false });
@@ -192,8 +192,8 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
   if (error) {
     console.error("getMyAssignments: select amb columnes de vídeo ha fallat", error);
     // Igual que al costat de l'alumne: si l'esquema encara no té les
-    // columnes noves de vídeo de resposta, no deixem que això faci
-    // desaparèixer tota la llista de deures del professor.
+    // columnes noves de vídeo de resposta / feedback, no deixem que això
+    // faci desaparèixer tota la llista de deures del professor.
     const fallback = await supabase
       .from("assignments")
       .select(
@@ -221,6 +221,9 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
         requiresVideo: false,
         submissionVideoUrl: null,
         submissionNote: null,
+        submittedAt: null,
+        teacherFeedback: null,
+        feedbackAt: null,
       };
     });
   }
@@ -244,6 +247,9 @@ export async function getMyAssignments(teacherId: string): Promise<ProfessorAssi
           ? await getSignedUrl(supabase, "submitted_videos", a.submission_video_path)
           : null,
         submissionNote: a.submission_note,
+        submittedAt: a.submitted_at ?? null,
+        teacherFeedback: a.teacher_feedback ?? null,
+        feedbackAt: a.feedback_at ?? null,
       };
     })
   );

@@ -110,7 +110,7 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
   const { data, error } = await supabase
     .from("assignments")
     .select(
-      "id, title, description, due_date, done, requires_video, submission_video_path, submission_note, teachers(first_name)"
+      "id, title, description, due_date, done, requires_video, submission_video_path, submission_note, submitted_at, teacher_feedback, feedback_at, teachers(first_name)"
     )
     .eq("student_id", studentId)
     .order("created_at", { ascending: false });
@@ -118,11 +118,11 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
   if (error) {
     console.error("getMyAssignments: select amb columnes de vídeo ha fallat", error);
     // Si l'esquema de Supabase encara no té les columnes noves de vídeo de
-    // resposta (requires_video/submission_video_path/submission_note),
-    // aquest select falla sencer i, sense aquest fallback, l'alumne no
-    // veuria CAP deure. Reintentem sense aquestes columnes perquè els
-    // deures sempre es puguin veure, encara que la funció de vídeo
-    // encara no funcioni.
+    // resposta (requires_video/submission_video_path/submission_note/
+    // teacher_feedback/feedback_at), aquest select falla sencer i, sense
+    // aquest fallback, l'alumne no veuria CAP deure. Reintentem sense
+    // aquestes columnes perquè els deures sempre es puguin veure, encara
+    // que la funció de vídeo/feedback encara no funcioni.
     const fallback = await supabase
       .from("assignments")
       .select("id, title, description, due_date, done, teachers(first_name)")
@@ -146,6 +146,9 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
         requiresVideo: false,
         submissionVideoUrl: null,
         submissionNote: null,
+        submittedAt: null,
+        teacherFeedback: null,
+        feedbackAt: null,
       };
     });
   }
@@ -167,6 +170,9 @@ export async function getMyAssignments(studentId: string): Promise<StudentAssign
           ? await getSignedUrl(supabase, "submitted_videos", a.submission_video_path)
           : null,
         submissionNote: a.submission_note,
+        submittedAt: a.submitted_at ?? null,
+        teacherFeedback: a.teacher_feedback ?? null,
+        feedbackAt: a.feedback_at ?? null,
       };
     })
   );

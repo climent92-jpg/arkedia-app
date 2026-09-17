@@ -2,12 +2,13 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarClock, CheckCircle2, Circle, UploadCloud, Video } from "lucide-react";
+import { CalendarClock, CheckCircle2, Circle, ShieldCheck, UploadCloud, Video } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/input";
 import { VideoPlayer } from "@/components/video-player";
+import { compressVideo } from "@/lib/compress-video";
 import { uploadToStorage } from "@/lib/storage-upload";
 import { cn } from "@/lib/utils";
 import { submitAssignmentVideo, toggleAssignmentDone } from "./actions";
@@ -128,9 +129,17 @@ function AssignmentCard({
               </Badge>
             )}
             {requiresVideo && (
-              <Badge variant={assignment.submissionVideoUrl ? "success" : "outline"}>
+              <Badge
+                variant={
+                  assignment.submissionVideoUrl || assignment.teacherFeedback ? "success" : "outline"
+                }
+              >
                 <Video className="size-3" />
-                {assignment.submissionVideoUrl ? "Vídeo enviat" : "Vídeo pendent"}
+                {assignment.teacherFeedback
+                  ? "Vídeo revisat"
+                  : assignment.submissionVideoUrl
+                    ? "Vídeo enviat"
+                    : "Vídeo pendent"}
               </Badge>
             )}
           </div>
@@ -158,6 +167,7 @@ function AssignmentVideoSubmission({
   const [note, setNote] = useState(assignment.submissionNote ?? "");
   const [error, setError] = useState<string | null>(null);
   const [replacing, setReplacing] = useState(false);
+  const [compressProgress, setCompressProgress] = useState<number | null>(null);
 
   function handleFile(files: FileList | null) {
     const f = files?.[0];
@@ -175,7 +185,18 @@ function AssignmentVideoSubmission({
 
     startTransition(async () => {
       try {
-        const uploaded = await uploadToStorage("submitted_videos", studentId, file, "video/mp4");
+        setCompressProgress(0);
+        const toUpload = await compressVideo(file, {
+          onProgress: (p) => setCompressProgress(p),
+        });
+        setCompressProgress(null);
+
+        const uploaded = await uploadToStorage(
+          "submitted_videos",
+          studentId,
+          toUpload,
+          "video/mp4"
+        );
         if (uploaded.error || !uploaded.path) {
           const message = uploaded.error ?? "No s'ha pogut pujar el vídeo.";
           console.error("AssignmentVideoSubmission: pujada a Storage ha fallat", uploaded.error);
@@ -208,6 +229,8 @@ function AssignmentVideoSubmission({
         console.error("AssignmentVideoSubmission: error inesperat", err);
         setError(message);
         alert(`Error inesperat en pujar el vídeo:\n${message}`);
+      } finally {
+        setCompressProgress(null);
       }
     });
   }
@@ -219,8 +242,29 @@ function AssignmentVideoSubmission({
         {assignment.submissionNote && (
           <p className="text-sm text-muted italic">&quot;{assignment.submissionNote}&quot;</p>
         )}
+        {assignment.teacherFeedback && (
+          <FeedbackBox feedback={assignment.teacherFeedback} />
+        )}
         <Button variant="outline" size="sm" className="self-start" onClick={() => setReplacing(true)}>
           Substituir el vídeo
+        </Button>
+      </div>
+    );
+  }
+
+  // El vídeo s'ha enviat, el professor ja l'ha revisat i comentat, i s'ha
+  // eliminat de Storage (vegeu submitTeacherFeedback): no en queda cap
+  // rastre, però l'alumne ha de poder veure el feedback rebut.
+  if (!assignment.submissionVideoUrl && assignment.teacherFeedback && !replacing) {
+    return (
+      <div className="mt-3 flex flex-col gap-2">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-arkedia-blue">
+          <ShieldCheck className="size-3.5" />
+          Vídeo revisat i eliminat (Estatut de privacitat i espai)
+        </div>
+        <FeedbackBox feedback={assignment.teacherFeedback} />
+        <Button variant="outline" size="sm" className="self-start" onClick={() => setReplacing(true)}>
+          Enviar un altre vídeo
         </Button>
       </div>
     );
@@ -256,9 +300,18 @@ function AssignmentVideoSubmission({
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
+          {compressProgress !== null && (
+            <p className="text-sm font-semibold text-arkedia-blue">
+              Comprimint vídeo... {compressProgress}%
+            </p>
+          )}
           <div className="flex gap-2">
             <Button size="sm" onClick={submit} disabled={pending}>
-              {pending ? "Enviant..." : "Enviar vídeo"}
+              {pending
+                ? compressProgress !== null
+                  ? "Comprimint..."
+                  : "Enviant..."
+                : "Enviar vídeo"}
             </Button>
             <Button
               size="sm"
@@ -278,6 +331,15 @@ function AssignmentVideoSubmission({
       {error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>
       )}
+    </div>
+  );
+}
+
+function FeedbackBox({ feedback }: { feedback: string }) {
+  return (
+    <div className="flex flex-col gap-1 rounded-xl bg-arkedia-blue-light/40 p-3">
+      <p className="text-sm font-semibold">Feedback del professor/a:</p>
+      <p className="text-sm text-muted whitespace-pre-wrap">{feedback}</p>
     </div>
   );
 }
