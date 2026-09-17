@@ -16,6 +16,12 @@ export interface NavBadges {
 
 const NO_BADGES: NavBadges = { deures: 0, material: 0, avisos: 0, xat: 0 };
 
+// Valor per defecte quan encara no hi ha cap data de "vist per última
+// vegada" (avisos_last_seen_at, material_last_seen_at, *_last_read_at
+// null): una data antiga fa que TOT el que ja existeix compti com a "no
+// vist", exactament com si es comparés amb COALESCE(data, '1970-01-01').
+const EPOCH = new Date(0).toISOString();
+
 function isMissingColumn(error: { message: string } | null) {
   return !!error && error.message.toLowerCase().includes("could not find the");
 }
@@ -38,18 +44,20 @@ async function countSinceLastSeen(
   // Important: qualsevol error aquí (no només "columna no trobada") ens
   // impedeix saber quan ha estat l'última visita — i sense aquesta dada NO
   // podem distingir "encara no ha vist res" de "ja ho ha vist tot". Donar
-  // per fet que és null en cas d'error feia comptar TOT com a no vist cada
+  // per fet que és EPOCH en cas d'error faria comptar TOT com a no vist cada
   // cop que aquesta consulta fallava per qualsevol motiu transitori:
   // l'origen més probable dels "avisos falsos" reportats.
   if (userError) return 0;
 
-  const lastSeen = (userRow as Record<string, string | null> | null)?.[lastSeenColumn] ?? null;
+  const lastSeen =
+    (userRow as Record<string, string | null> | null)?.[lastSeenColumn] ?? EPOCH;
   // La RLS de cada taula ja limita aquesta consulta al que li correspon a
   // l'usuari (audiència d'avisos, o materials propis/generals).
-  let query = supabase.from(table).select("id", { count: "exact", head: true });
-  if (lastSeen) query = query.gt("created_at", lastSeen);
+  const { count, error } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .gt("created_at", lastSeen);
 
-  const { count, error } = await query;
   return error ? 0 : (count ?? 0);
 }
 
@@ -94,12 +102,14 @@ async function countUnreadThreads(
   }
 
   // Un badge numèric per fil (no per missatge individual): és el nombre de
-  // converses amb alguna cosa nova per llegir.
+  // converses amb alguna cosa nova per llegir. Comptem un fil quan el seu
+  // darrer missatge és posterior a EPOCH (real read_at, o l'1970-01-01 per
+  // defecte si encara no s'ha llegit mai) I no l'ha enviat l'usuari mateix.
   return threads.reduce((total, t) => {
     const latest = latestByThread.get(t.id);
     if (!latest || latest.sender_id === userId) return total;
-    const readAt = role === "familia" ? t.student_last_read_at : t.teacher_last_read_at;
-    return !readAt || latest.created_at > readAt ? total + 1 : total;
+    const readAt = (role === "familia" ? t.student_last_read_at : t.teacher_last_read_at) ?? EPOCH;
+    return latest.created_at > readAt ? total + 1 : total;
   }, 0);
 }
 
