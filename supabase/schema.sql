@@ -30,6 +30,7 @@ create table if not exists public.users (
   email text not null unique,
   phone text,
   avatar_url text,
+  avisos_last_seen_at timestamptz, -- darrer cop que ha obert /avisos (badge de notificació)
   created_at timestamptz not null default now()
 );
 
@@ -175,6 +176,8 @@ create table if not exists public.message_threads (
   student_id uuid not null references public.students (id) on delete cascade,
   teacher_id uuid not null references public.teachers (id) on delete cascade,
   created_at timestamptz not null default now(),
+  student_last_read_at timestamptz, -- darrer cop que la família ha obert aquest fil (badge de xat)
+  teacher_last_read_at timestamptz, -- darrer cop que el professor ha obert aquest fil (badge de xat)
   unique (student_id, teacher_id)
 );
 
@@ -219,6 +222,7 @@ alter table public.users
   add column if not exists email text,
   add column if not exists phone text,
   add column if not exists avatar_url text,
+  add column if not exists avisos_last_seen_at timestamptz,
   add column if not exists created_at timestamptz not null default now();
 
 alter table public.teachers
@@ -307,7 +311,9 @@ alter table public.submitted_videos alter column teacher_id drop not null;
 alter table public.message_threads
   add column if not exists student_id uuid references public.students (id) on delete cascade,
   add column if not exists teacher_id uuid references public.teachers (id) on delete cascade,
-  add column if not exists created_at timestamptz not null default now();
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists student_last_read_at timestamptz,
+  add column if not exists teacher_last_read_at timestamptz;
 
 alter table public.messages
   add column if not exists thread_id uuid references public.message_threads (id) on delete cascade,

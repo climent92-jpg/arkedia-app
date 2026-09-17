@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { Logo, LogoMark } from "@/components/logo";
 import { ROLE_HOME, navByRole, roleLabel } from "@/lib/nav-config";
+import type { NavBadges } from "@/lib/nav-badges";
 import { useSignOut } from "@/lib/use-sign-out";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/types";
@@ -18,13 +19,30 @@ function isActive(pathname: string, href: string) {
   return pathname.startsWith(href);
 }
 
+// L'últim tram de la ruta ("/professor/deures" -> "deures") fa de clau del
+// mapa de notificacions: així el mateix AppShell serveix tant per a
+// l'alumne com per al professor sense haver de repetir la llista d'items.
+const BADGE_KEYS = new Set<keyof NavBadges>(["deures", "material", "avisos", "xat"]);
+
+function badgeKeyFor(href: string): keyof NavBadges | undefined {
+  const key = href.split("/").filter(Boolean).pop();
+  return key && BADGE_KEYS.has(key as keyof NavBadges) ? (key as keyof NavBadges) : undefined;
+}
+
+function hasBadgeFor(badges: NavBadges | undefined, href: string): boolean {
+  const key = badgeKeyFor(href);
+  return key ? !!badges?.[key] : false;
+}
+
 export function AppShell({
   role,
   userName,
+  badges,
   children,
 }: {
   role: UserRole;
   userName: string;
+  badges?: NavBadges;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -44,6 +62,7 @@ export function AppShell({
           {items.map((item) => {
             const active = isActive(pathname, item.href);
             const Icon = item.icon;
+            const hasBadge = hasBadgeFor(badges, item.href);
             return (
               <Link
                 key={item.href}
@@ -55,7 +74,15 @@ export function AppShell({
                     : "text-foreground/80 hover:bg-arkedia-blue-light hover:text-arkedia-blue"
                 )}
               >
-                <Icon className="size-5" />
+                <span className="relative flex">
+                  <Icon className="size-5" />
+                  {hasBadge && (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500 ring-2 ring-surface"
+                      aria-label="Notificacions pendents"
+                    />
+                  )}
+                </span>
                 {item.label}
               </Link>
             );
@@ -107,6 +134,7 @@ export function AppShell({
         {items.map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
+          const hasBadge = hasBadgeFor(badges, item.href);
           return (
             <Link
               key={item.href}
@@ -116,7 +144,15 @@ export function AppShell({
                 active ? "text-arkedia-blue" : "text-muted"
               )}
             >
-              <Icon className={cn("size-5", active && "fill-arkedia-blue-light")} />
+              <span className="relative flex">
+                <Icon className={cn("size-5", active && "fill-arkedia-blue-light")} />
+                {hasBadge && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500 ring-2 ring-surface"
+                    aria-label="Notificacions pendents"
+                  />
+                )}
+              </span>
               {item.label}
             </Link>
           );

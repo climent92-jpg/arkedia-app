@@ -1,4 +1,5 @@
 import { Megaphone } from "lucide-react";
+import { MarkAvisosSeen } from "@/components/mark-avisos-seen";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +31,7 @@ export default async function ProfessorAvisosPage() {
 
   return (
     <div>
+      <MarkAvisosSeen />
       <PageHeader title="Avisos" description="Comunicats de l'administració." />
 
       <div className="flex flex-col gap-3">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { ChatThread } from "@/components/chat-thread";
+import { MarkThreadRead } from "@/components/mark-thread-read";
 import { getThreadIfAccessible, getThreadMessages } from "@/lib/chat-data";
 import { getCurrentProfile } from "@/lib/supabase/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -31,6 +32,7 @@ export default async function ProfessorXatThreadPage({
 
   return (
     <div>
+      <MarkThreadRead threadId={threadId} />
       <Link
         href="/professor/xat"
         className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-arkedia-blue"
