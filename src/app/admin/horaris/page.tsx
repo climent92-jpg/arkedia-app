@@ -42,7 +42,7 @@ export default async function AdminHorarisPage() {
     <div>
       <PageHeader
         title="Horaris"
-        description="Crea classes individuals triant professor, alumne, dia i hora."
+        description="Tria un professor per veure i gestionar la seva graella setmanal."
       />
       <SchedulesManager initialSchedules={schedules} teachers={teachers} students={students} />
     </div>

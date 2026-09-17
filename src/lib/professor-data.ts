@@ -55,11 +55,48 @@ export async function getMySchedule(teacherId: string): Promise<ProfessorSchedul
   const { data, error } = await supabase
     .from("schedules")
     .select(
-      "id, weekday, start_time, end_time, instrument, modality, room, student_id, students(first_name, last_name, course)"
+      "id, weekday, start_time, end_time, instrument, modality, room, notes, student_id, students(first_name, last_name, course)"
     )
     .eq("teacher_id", teacherId);
 
-  if (error || !data) return [];
+  if (error) {
+    console.error("getMySchedule: select amb 'notes' ha fallat", error);
+    // Si l'esquema encara no té la columna notes, no deixem que això faci
+    // desaparèixer tot l'horari del professor.
+    const fallback = await supabase
+      .from("schedules")
+      .select(
+        "id, weekday, start_time, end_time, instrument, modality, room, student_id, students(first_name, last_name, course)"
+      )
+      .eq("teacher_id", teacherId);
+
+    if (fallback.error || !fallback.data) return [];
+
+    return fallback.data.map((s) => {
+      const student = extractOne<{
+        first_name: string;
+        last_name: string;
+        course: string | null;
+      }>(s.students);
+
+      return {
+        id: s.id,
+        weekday: s.weekday,
+        startTime: s.start_time,
+        endTime: s.end_time,
+        instrument: s.instrument,
+        modality: s.modality,
+        room: s.room,
+        notes: null,
+        studentId: s.student_id,
+        studentFirstName: student?.first_name ?? "",
+        studentLastName: student?.last_name ?? "",
+        studentCourse: student?.course ?? null,
+      };
+    });
+  }
+
+  if (!data) return [];
 
   return data.map((s) => {
     const student = extractOne<{
@@ -76,6 +113,7 @@ export async function getMySchedule(teacherId: string): Promise<ProfessorSchedul
       instrument: s.instrument,
       modality: s.modality,
       room: s.room,
+      notes: s.notes ?? null,
       studentId: s.student_id,
       studentFirstName: student?.first_name ?? "",
       studentLastName: student?.last_name ?? "",

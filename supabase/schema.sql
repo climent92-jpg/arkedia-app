@@ -86,6 +86,10 @@ exception
   when duplicate_object then null;
 end $$;
 
+-- Afegit després del llançament inicial: la graella setmanal d'horaris
+-- (admin i professor) va de dilluns a diumenge.
+alter type weekday add value if not exists 'Diumenge';
+
 do $$ begin
   create type class_modality as enum ('Individual', 'Parelles', 'Col·lectiva');
 exception
@@ -102,6 +106,7 @@ create table if not exists public.schedules (
   instrument text not null,
   modality class_modality not null default 'Individual',
   room text,
+  notes text, -- notes lliures sobre la franja horària (admin o professor)
   created_at timestamptz not null default now()
 );
 
@@ -257,6 +262,7 @@ alter table public.schedules
   add column if not exists instrument text not null default '',
   add column if not exists modality class_modality not null default 'Individual',
   add column if not exists room text,
+  add column if not exists notes text,
   add column if not exists created_at timestamptz not null default now();
 
 -- Un cop la columna existeix i totes les files ja tenen un valor, traiem el
@@ -466,6 +472,41 @@ create policy "student_teachers_select_teacher" on public.student_teachers
 drop policy if exists "schedules_select_teacher" on public.schedules;
 create policy "schedules_select_teacher" on public.schedules
   for select using (
+    exists (
+      select 1 from public.teachers t
+      where t.id = schedules.teacher_id and t.user_id = auth.uid()
+    )
+  );
+
+-- El professorat gestiona el seu propi horari des de /professor/horaris,
+-- sense passar pel client d'administració (mateix criteri que assignments).
+drop policy if exists "schedules_insert_teacher" on public.schedules;
+create policy "schedules_insert_teacher" on public.schedules
+  for insert with check (
+    exists (
+      select 1 from public.teachers t
+      where t.id = schedules.teacher_id and t.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "schedules_update_teacher" on public.schedules;
+create policy "schedules_update_teacher" on public.schedules
+  for update using (
+    exists (
+      select 1 from public.teachers t
+      where t.id = schedules.teacher_id and t.user_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.teachers t
+      where t.id = schedules.teacher_id and t.user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "schedules_delete_teacher" on public.schedules;
+create policy "schedules_delete_teacher" on public.schedules
+  for delete using (
     exists (
       select 1 from public.teachers t
       where t.id = schedules.teacher_id and t.user_id = auth.uid()

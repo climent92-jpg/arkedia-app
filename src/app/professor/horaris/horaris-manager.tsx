@@ -6,10 +6,9 @@ import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input, Select, Textarea } from "@/components/ui/input";
-import { Field, FormError } from "@/app/admin/usuaris/users-manager";
-import { createSchedule, deleteSchedule, updateSchedule } from "./actions";
-import type { AdminScheduleRow, AdminStudentRow, AdminTeacherRow, DiaSetmana, Modalitat } from "@/types";
+import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { createMySchedule, deleteMySchedule, updateMySchedule } from "./actions";
+import type { DiaSetmana, Modalitat, ProfessorScheduleRow, ProfessorStudentRow } from "@/types";
 
 const WEEKDAYS: DiaSetmana[] = [
   "Dilluns",
@@ -35,7 +34,7 @@ interface FormState {
   notes: string;
 }
 
-function emptyForm(students: AdminStudentRow[], weekday: DiaSetmana = "Dilluns"): FormState {
+function emptyForm(students: ProfessorStudentRow[], weekday: DiaSetmana = "Dilluns"): FormState {
   return {
     id: undefined,
     studentId: students[0]?.id ?? "",
@@ -49,33 +48,31 @@ function emptyForm(students: AdminStudentRow[], weekday: DiaSetmana = "Dilluns")
   };
 }
 
-export function SchedulesManager({
-  initialSchedules,
-  teachers,
+export function HorarisManager({
+  schedule,
   students,
 }: {
-  initialSchedules: AdminScheduleRow[];
-  teachers: AdminTeacherRow[];
-  students: AdminStudentRow[];
+  schedule: ProfessorScheduleRow[];
+  students: ProfessorStudentRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [selectedTeacherId, setSelectedTeacherId] = useState(teachers[0]?.id ?? "");
   const [showForm, setShowForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(() => emptyForm(students));
 
-  const canCreate = teachers.length > 0 && students.length > 0;
+  const canCreate = students.length > 0;
 
-  const byDay = useMemo(() => {
-    const forTeacher = initialSchedules.filter((s) => s.teacherId === selectedTeacherId);
-    return WEEKDAYS.map((weekday) => ({
-      weekday,
-      items: forTeacher
-        .filter((s) => s.weekday === weekday)
-        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
-    }));
-  }, [initialSchedules, selectedTeacherId]);
+  const byDay = useMemo(
+    () =>
+      WEEKDAYS.map((weekday) => ({
+        weekday,
+        items: schedule
+          .filter((s) => s.weekday === weekday)
+          .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+      })),
+    [schedule]
+  );
 
   function openCreate(weekday: DiaSetmana = "Dilluns") {
     setForm(emptyForm(students, weekday));
@@ -83,7 +80,7 @@ export function SchedulesManager({
     setShowForm(true);
   }
 
-  function openEdit(s: AdminScheduleRow) {
+  function openEdit(s: ProfessorScheduleRow) {
     setForm({
       id: s.id,
       studentId: s.studentId,
@@ -102,7 +99,6 @@ export function SchedulesManager({
   function submit() {
     setError(null);
     const payload = {
-      teacherId: selectedTeacherId,
       studentId: form.studentId,
       weekday: form.weekday,
       startTime: form.startTime,
@@ -114,8 +110,8 @@ export function SchedulesManager({
     };
     startTransition(async () => {
       const result = form.id
-        ? await updateSchedule(form.id, payload)
-        : await createSchedule(payload);
+        ? await updateMySchedule(form.id, payload)
+        : await createMySchedule(payload);
       if (!result.success) {
         setError(result.error ?? "Alguna cosa ha fallat.");
         return;
@@ -126,7 +122,7 @@ export function SchedulesManager({
     });
   }
 
-  function remove(s: AdminScheduleRow) {
+  function remove(s: ProfessorScheduleRow) {
     if (
       !confirm(
         `Eliminar la classe de ${s.studentFirstName} ${s.studentLastName} (${s.weekday} ${s.startTime.slice(0, 5)})?`
@@ -135,7 +131,7 @@ export function SchedulesManager({
       return;
 
     startTransition(async () => {
-      const result = await deleteSchedule(s.id);
+      const result = await deleteMySchedule(s.id);
       if (!result.success) {
         alert(result.error ?? "No s'ha pogut eliminar.");
         return;
@@ -144,36 +140,9 @@ export function SchedulesManager({
     });
   }
 
-  if (teachers.length === 0) {
-    return (
-      <Card className="border-amber-200 bg-amber-50">
-        <CardContent className="p-4 text-sm text-amber-800">
-          Cal donar d&apos;alta almenys un professor a{" "}
-          <span className="font-semibold">Usuaris</span> abans de gestionar horaris.
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <div>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <Field label="Professor">
-          <Select
-            value={selectedTeacherId}
-            onChange={(e) => {
-              setSelectedTeacherId(e.target.value);
-              setShowForm(false);
-            }}
-            className="sm:w-72"
-          >
-            {teachers.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.firstName} {t.lastName}
-              </option>
-            ))}
-          </Select>
-        </Field>
+      <div className="mb-4 flex justify-end">
         <Button
           size="sm"
           onClick={() => (showForm ? setShowForm(false) : openCreate())}
@@ -187,8 +156,8 @@ export function SchedulesManager({
       {!canCreate && (
         <Card className="mb-4 border-amber-200 bg-amber-50">
           <CardContent className="p-4 text-sm text-amber-800">
-            Cal donar d&apos;alta almenys un alumne a{" "}
-            <span className="font-semibold">Usuaris</span> abans de crear horaris.
+            Encara no tens cap alumne assignat: demana a l&apos;administració
+            que et vinculi un alumne abans de crear-hi horaris.
           </CardContent>
         </Card>
       )}
@@ -197,8 +166,10 @@ export function SchedulesManager({
         <Card className="mb-5">
           <CardContent className="flex flex-col gap-3 p-4 sm:p-5">
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Alumne">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="h-alumne">Alumne</Label>
                 <Select
+                  id="h-alumne"
                   value={form.studentId}
                   onChange={(e) => setForm((f) => ({ ...f, studentId: e.target.value }))}
                 >
@@ -208,9 +179,11 @@ export function SchedulesManager({
                     </option>
                   ))}
                 </Select>
-              </Field>
-              <Field label="Dia de la setmana">
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="h-dia">Dia de la setmana</Label>
                 <Select
+                  id="h-dia"
                   value={form.weekday}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, weekday: e.target.value as DiaSetmana }))
@@ -222,36 +195,44 @@ export function SchedulesManager({
                     </option>
                   ))}
                 </Select>
-              </Field>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Hora d'inici">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="h-inici">Hora d&apos;inici</Label>
                 <Input
+                  id="h-inici"
                   type="time"
                   value={form.startTime}
                   onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
                 />
-              </Field>
-              <Field label="Hora de fi">
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="h-fi">Hora de fi</Label>
                 <Input
+                  id="h-fi"
                   type="time"
                   value={form.endTime}
                   onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
                 />
-              </Field>
+              </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Instrument / assignatura">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="h-instrument">Instrument / assignatura</Label>
                 <Input
+                  id="h-instrument"
                   value={form.instrument}
                   onChange={(e) => setForm((f) => ({ ...f, instrument: e.target.value }))}
                   placeholder="Ex: Piano"
                 />
-              </Field>
-              <Field label="Modalitat">
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="h-modalitat">Modalitat</Label>
                 <Select
+                  id="h-modalitat"
                   value={form.modality}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, modality: e.target.value as Modalitat }))
@@ -263,27 +244,35 @@ export function SchedulesManager({
                     </option>
                   ))}
                 </Select>
-              </Field>
+              </div>
             </div>
 
-            <Field label="Aula (opcional)">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="h-aula">Aula (opcional)</Label>
               <Input
+                id="h-aula"
                 value={form.room}
                 onChange={(e) => setForm((f) => ({ ...f, room: e.target.value }))}
                 placeholder="Ex: Sala 2"
               />
-            </Field>
+            </div>
 
-            <Field label="Notes (opcional)">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="h-notes">Notes (opcional)</Label>
               <Textarea
+                id="h-notes"
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                 placeholder="Qualsevol detall addicional sobre aquesta franja..."
               />
-            </Field>
+            </div>
 
-            {error && <FormError>{error}</FormError>}
+            {error && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+                {error}
+              </p>
+            )}
 
             <Button onClick={submit} disabled={pending} className="mt-1">
               {pending ? "Desant..." : form.id ? "Desar canvis" : "Crear franja horària"}

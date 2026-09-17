@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdminProfile } from "@/lib/supabase/auth";
+import { createClient } from "@/lib/supabase/server";
+import { requireProfile } from "@/lib/supabase/auth";
+import { getMyTeacherProfile } from "@/lib/professor-data";
 import type { DiaSetmana, Modalitat } from "@/types";
 
 export interface ActionResult {
@@ -19,14 +20,13 @@ function fail(error: string): ActionResult {
 }
 
 function revalidateHoraris() {
-  revalidatePath("/admin/horaris");
-  revalidatePath("/admin");
   revalidatePath("/professor/horaris");
   revalidatePath("/professor");
+  revalidatePath("/admin/horaris");
 }
 
 // Inclou details/hint (quan Postgres els dona) perquè l'error que es mostri
-// a l'administrador sigui l'exacte de Supabase, no només un "message" genèric.
+// al professor sigui l'exacte de Supabase, no només un "message" genèric.
 function formatDbError(error: { message: string; details?: string | null; hint?: string | null }) {
   let text = error.message;
   if (error.details) text += ` — ${error.details}`;
@@ -34,8 +34,7 @@ function formatDbError(error: { message: string; details?: string | null; hint?:
   return text;
 }
 
-export interface ScheduleInput {
-  teacherId: string;
+export interface MyScheduleInput {
   studentId: string;
   weekday: DiaSetmana;
   startTime: string;
@@ -46,32 +45,34 @@ export interface ScheduleInput {
   notes?: string;
 }
 
-function validate(input: ScheduleInput): string | null {
-  if (!input.teacherId || !input.studentId) return "Cal triar un professor i un alumne.";
+function validate(input: MyScheduleInput): string | null {
+  if (!input.studentId) return "Cal triar un alumne.";
   if (!input.startTime || !input.endTime) return "Cal indicar l'hora d'inici i de fi.";
   if (input.endTime <= input.startTime) return "L'hora de fi ha de ser posterior a la d'inici.";
   if (!input.instrument.trim()) return "Cal indicar l'instrument.";
   return null;
 }
 
-export async function createSchedule(input: ScheduleInput): Promise<ActionResult> {
+export async function createMySchedule(input: MyScheduleInput): Promise<ActionResult> {
   try {
-    await requireAdminProfile();
+    await requireProfile("professor");
   } catch {
     return fail("No autoritzat.");
   }
 
+  const teacher = await getMyTeacherProfile();
+  if (!teacher) return fail("El teu compte no té cap fitxa de professor vinculada.");
+
   const validationError = validate(input);
   if (validationError) return fail(validationError);
 
-  const admin = createAdminClient();
+  const supabase = await createClient();
 
-  // Igual que amb el feedback dels deures: si l'esquema encara no té la
-  // columna "notes" (schema.sql no re-executat), reintentem sense ella en
-  // lloc de perdre tota la franja horària.
+  // Mateix patró de fallback en cascada que a la resta de l'app: si
+  // l'esquema encara no té la columna "notes", reintentem sense ella.
   const attempts: Record<string, unknown>[] = [
     {
-      teacher_id: input.teacherId,
+      teacher_id: teacher.id,
       student_id: input.studentId,
       weekday: input.weekday,
       start_time: input.startTime,
@@ -82,7 +83,7 @@ export async function createSchedule(input: ScheduleInput): Promise<ActionResult
       notes: input.notes?.trim() || null,
     },
     {
-      teacher_id: input.teacherId,
+      teacher_id: teacher.id,
       student_id: input.studentId,
       weekday: input.weekday,
       start_time: input.startTime,
@@ -96,7 +97,7 @@ export async function createSchedule(input: ScheduleInput): Promise<ActionResult
   let lastError: { message: string; details?: string | null; hint?: string | null } | null = null;
 
   for (const payload of attempts) {
-    const { error } = await admin.from("schedules").insert(payload);
+    const { error } = await supabase.from("schedules").insert(payload);
     if (!error) {
       revalidateHoraris();
       return ok();
@@ -108,21 +109,27 @@ export async function createSchedule(input: ScheduleInput): Promise<ActionResult
   return fail(lastError ? formatDbError(lastError) : "No s'ha pogut crear la franja horària.");
 }
 
-export async function updateSchedule(id: string, input: ScheduleInput): Promise<ActionResult> {
+// No filtrem per teacher_id a la clàusula .eq de baix perquè la policy RLS
+// "schedules_update_teacher" ja restringeix l'acció a l'horari propi —
+// però el filtre explícit és una segona capa de seguretat, com a la resta
+// d'accions d'aquest portal.
+export async function updateMySchedule(id: string, input: MyScheduleInput): Promise<ActionResult> {
   try {
-    await requireAdminProfile();
+    await requireProfile("professor");
   } catch {
     return fail("No autoritzat.");
   }
 
+  const teacher = await getMyTeacherProfile();
+  if (!teacher) return fail("El teu compte no té cap fitxa de professor vinculada.");
+
   const validationError = validate(input);
   if (validationError) return fail(validationError);
 
-  const admin = createAdminClient();
+  const supabase = await createClient();
 
   const attempts: Record<string, unknown>[] = [
     {
-      teacher_id: input.teacherId,
       student_id: input.studentId,
       weekday: input.weekday,
       start_time: input.startTime,
@@ -133,7 +140,6 @@ export async function updateSchedule(id: string, input: ScheduleInput): Promise<
       notes: input.notes?.trim() || null,
     },
     {
-      teacher_id: input.teacherId,
       student_id: input.studentId,
       weekday: input.weekday,
       start_time: input.startTime,
@@ -147,7 +153,11 @@ export async function updateSchedule(id: string, input: ScheduleInput): Promise<
   let lastError: { message: string; details?: string | null; hint?: string | null } | null = null;
 
   for (const payload of attempts) {
-    const { error } = await admin.from("schedules").update(payload).eq("id", id);
+    const { error } = await supabase
+      .from("schedules")
+      .update(payload)
+      .eq("id", id)
+      .eq("teacher_id", teacher.id);
     if (!error) {
       revalidateHoraris();
       return ok();
@@ -159,15 +169,23 @@ export async function updateSchedule(id: string, input: ScheduleInput): Promise<
   return fail(lastError ? formatDbError(lastError) : "No s'ha pogut desar la franja horària.");
 }
 
-export async function deleteSchedule(id: string): Promise<ActionResult> {
+export async function deleteMySchedule(id: string): Promise<ActionResult> {
   try {
-    await requireAdminProfile();
+    await requireProfile("professor");
   } catch {
     return fail("No autoritzat.");
   }
 
-  const admin = createAdminClient();
-  const { error } = await admin.from("schedules").delete().eq("id", id);
+  const teacher = await getMyTeacherProfile();
+  if (!teacher) return fail("El teu compte no té cap fitxa de professor vinculada.");
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("schedules")
+    .delete()
+    .eq("id", id)
+    .eq("teacher_id", teacher.id);
+
   if (error) return fail(error.message);
 
   revalidateHoraris();

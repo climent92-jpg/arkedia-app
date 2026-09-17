@@ -15,6 +15,7 @@ const DIA_ORDER: DiaSetmana[] = [
   "Dijous",
   "Divendres",
   "Dissabte",
+  "Diumenge",
 ];
 
 export default async function ProfessorAgendaPage() {
