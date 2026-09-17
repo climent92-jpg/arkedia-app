@@ -168,12 +168,33 @@ function AssignmentVideoSubmission({
   const [error, setError] = useState<string | null>(null);
   const [replacing, setReplacing] = useState(false);
   const [compressProgress, setCompressProgress] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   function handleFile(files: FileList | null) {
     const f = files?.[0];
     if (!f) return;
+    if (!f.type.startsWith("video/")) {
+      setError("El fitxer ha de ser un vídeo.");
+      return;
+    }
     setFile(f);
     setError(null);
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    setIsDragging(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    setIsDragging(false);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFile(e.dataTransfer.files);
   }
 
   function submit() {
@@ -276,10 +297,18 @@ function AssignmentVideoSubmission({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-surface px-4 py-4 text-sm font-semibold text-arkedia-blue transition-colors hover:border-arkedia-blue hover:bg-arkedia-blue-light/40"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={cn(
+            "flex items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-4 text-sm font-semibold transition-colors",
+            isDragging
+              ? "border-arkedia-blue bg-arkedia-blue-light/60 text-arkedia-blue"
+              : "border-border bg-surface text-arkedia-blue hover:border-arkedia-blue hover:bg-arkedia-blue-light/40"
+          )}
         >
           <UploadCloud className="size-4" />
-          Pujar el vídeo de resposta
+          {isDragging ? "Deixa anar el vídeo aquí" : "Pujar el vídeo de resposta (o arrossega'l aquí)"}
           <input
             ref={inputRef}
             type="file"

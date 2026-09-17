@@ -29,9 +29,10 @@ function badgeKeyFor(href: string): keyof NavBadges | undefined {
   return key && BADGE_KEYS.has(key as keyof NavBadges) ? (key as keyof NavBadges) : undefined;
 }
 
-function hasBadgeFor(badges: NavBadges | undefined, href: string): boolean {
+function badgeCountFor(badges: NavBadges | undefined, href: string): number {
   const key = badgeKeyFor(href);
-  return key ? !!badges?.[key] : false;
+  const count = key ? badges?.[key] : undefined;
+  return count && count > 0 ? count : 0;
 }
 
 export function AppShell({
@@ -62,7 +63,7 @@ export function AppShell({
           {items.map((item) => {
             const active = isActive(pathname, item.href);
             const Icon = item.icon;
-            const hasBadge = hasBadgeFor(badges, item.href);
+            const count = badgeCountFor(badges, item.href);
             return (
               <Link
                 key={item.href}
@@ -76,12 +77,7 @@ export function AppShell({
               >
                 <span className="relative flex">
                   <Icon className="size-5" />
-                  {hasBadge && (
-                    <span
-                      className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500 ring-2 ring-surface"
-                      aria-label="Notificacions pendents"
-                    />
-                  )}
+                  {count > 0 && <BadgeCount count={count} />}
                 </span>
                 {item.label}
               </Link>
@@ -134,7 +130,7 @@ export function AppShell({
         {items.map((item) => {
           const active = isActive(pathname, item.href);
           const Icon = item.icon;
-          const hasBadge = hasBadgeFor(badges, item.href);
+          const count = badgeCountFor(badges, item.href);
           return (
             <Link
               key={item.href}
@@ -146,12 +142,7 @@ export function AppShell({
             >
               <span className="relative flex">
                 <Icon className={cn("size-5", active && "fill-arkedia-blue-light")} />
-                {hasBadge && (
-                  <span
-                    className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-red-500 ring-2 ring-surface"
-                    aria-label="Notificacions pendents"
-                  />
-                )}
+                {count > 0 && <BadgeCount count={count} />}
               </span>
               {item.label}
             </Link>
@@ -159,5 +150,17 @@ export function AppShell({
         })}
       </nav>
     </div>
+  );
+}
+
+function BadgeCount({ count }: { count: number }) {
+  const label = count > 99 ? "99+" : String(count);
+  return (
+    <span
+      className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold leading-none text-white ring-2 ring-surface"
+      aria-label={`${count} notificacions pendents`}
+    >
+      {label}
+    </span>
   );
 }

@@ -1,5 +1,6 @@
 import { Download, FileText } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { RefreshNavBadges } from "@/components/refresh-nav-badges";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { VideoPlayer } from "@/components/video-player";
@@ -35,6 +36,7 @@ export default async function AlumneMaterialPage() {
 
   return (
     <div>
+      <RefreshNavBadges />
       <PageHeader title="Material" description="Partitures i vídeos del teu professorat." />
 
       <Tabs defaultValue="partitures">
