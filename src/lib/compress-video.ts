@@ -18,7 +18,27 @@ export interface CompressVideoOptions {
 const MAX_HEIGHT_DEFAULT = 720;
 const BITRATE_DEFAULT = 1_500_000; // ~1.5 Mbps
 
+// Safari (macOS i iOS/iPadOS) no té suport fiable de WebM: alguns Safari
+// permeten gravar-lo amb MediaRecorder però després no el saben reproduir
+// (pantalla negra sense àudio ni vídeo). Com que no podem garantir que qui
+// revisi el vídeo (el professor) tampoc faci servir Safari, la manera
+// segura d'evitar aquest forat és no re-encodar mai a WebM en aquest
+// navegador: pugem sempre l'original (normalment MP4/H.264, que Safari sí
+// reprodueix de manera nativa).
+function isSafari(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const isAppleVendor = /apple/i.test(navigator.vendor ?? "");
+  const isChromiumOrFirefox = /crios|fxios|chrome|chromium|android|firefox/i.test(ua);
+  const isIOSDevice =
+    /iPad|iPhone|iPod/.test(ua) ||
+    // iPadOS 13+ es presenta com "Macintosh" però amb suport tàctil.
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return (isAppleVendor && !isChromiumOrFirefox) || (isIOSDevice && !isChromiumOrFirefox);
+}
+
 function pickMimeType(): string | null {
+  if (isSafari()) return null;
   const candidates = [
     "video/webm;codecs=vp9,opus",
     "video/webm;codecs=vp8,opus",

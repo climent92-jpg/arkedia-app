@@ -1,4 +1,6 @@
 import { AppShell } from "@/components/app-shell";
+import { getMyTeacherProfile } from "@/lib/professor-data";
+import { getTeacherNavBadges } from "@/lib/nav-badges";
 import { requireRole } from "@/lib/supabase/auth";
 
 // La sessió depèn de les cookies de cada petició: mai es pot prerenderitzar
@@ -11,9 +13,11 @@ export default async function ProfessorLayout({
   children: React.ReactNode;
 }) {
   const profile = await requireRole("professor");
+  const teacher = await getMyTeacherProfile();
+  const badges = teacher ? await getTeacherNavBadges(teacher.id, profile.id) : undefined;
 
   return (
-    <AppShell role="professor" userName={profile.fullName}>
+    <AppShell role="professor" userName={profile.fullName} badges={badges}>
       {children}
     </AppShell>
   );
