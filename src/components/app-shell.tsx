@@ -9,56 +9,83 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export interface AppShellProps {
+  children: React.ReactNode;
+  role?: string;
+  userName?: string;
+  badges?: any;
+}
+
+export function AppShell({
+  children,
+  role: initialRole,
+  userName: initialUserName,
+  badges: initialBadges,
+}: AppShellProps) {
   const pathname = usePathname();
-  const [userName, setUserName] = useState<string>('Usuari');
-  const [userRole, setUserRole] = useState<string>('');
+  const [userName, setUserName] = useState<string>(initialUserName || 'Usuari');
+  const [userRole, setUserRole] = useState<string>(initialRole || '');
   const [counts, setCounts] = useState({
-    deures: 1,
-    material: 0,
-    xat: 0,
-    avisos: 0,
+    deures: initialBadges?.deures ?? 1,
+    material: initialBadges?.material ?? 0,
+    xat: initialBadges?.xat ?? 0,
+    avisos: initialBadges?.avisos ?? 0,
   });
 
   const isProfe = pathname.startsWith('/profe') || pathname.startsWith('/professor');
   const isAdmin = pathname.startsWith('/admin');
 
   useEffect(() => {
+    if (initialUserName) setUserName(initialUserName);
+    if (initialRole) setUserRole(initialRole);
+    if (initialBadges) {
+      setCounts({
+        deures: initialBadges.deures ?? 0,
+        material: initialBadges.material ?? 0,
+        xat: initialBadges.xat ?? 0,
+        avisos: initialBadges.avisos ?? 0,
+      });
+    }
+  }, [initialUserName, initialRole, initialBadges]);
+
+  useEffect(() => {
     async function loadData() {
       try {
-        // 1. Carregar usuari actual
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
+        if (!initialUserName || !initialRole) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .maybeSingle();
 
-          if (profile) {
-            setUserName(profile.full_name || profile.name || user.email?.split('@')[0] || 'Usuari');
-            setUserRole(profile.role === 'teacher' ? 'Professor/a' : profile.role === 'admin' ? 'Administrador' : 'Alumne');
+            if (profile) {
+              if (!initialUserName) setUserName(profile.full_name || profile.name || user.email?.split('@')[0] || 'Usuari');
+              if (!initialRole) setUserRole(profile.role === 'teacher' ? 'Professor/a' : profile.role === 'admin' ? 'Administrador' : 'Alumne');
+            }
           }
         }
 
-        // 2. Carregar recompte de notificacions de Supabase
-        const { count: countMaterial } = await supabase.from('materials').select('*', { count: 'exact', head: true });
-        const { count: countXat } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('read', false);
-        const { count: countAvisos } = await supabase.from('announcements').select('*', { count: 'exact', head: true });
+        if (!initialBadges) {
+          const { count: countMaterial } = await supabase.from('materials').select('*', { count: 'exact', head: true });
+          const { count: countXat } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('read', false);
+          const { count: countAvisos } = await supabase.from('announcements').select('*', { count: 'exact', head: true });
 
-        setCounts({
-          deures: 1,
-          material: countMaterial || 0,
-          xat: countXat || 0,
-          avisos: countAvisos || 0,
-        });
+          setCounts({
+            deures: 1,
+            material: countMaterial || 0,
+            xat: countXat || 0,
+            avisos: countAvisos || 0,
+          });
+        }
       } catch (e) {
         console.error('Error carregant dades del menú:', e);
       }
     }
 
     loadData();
-  }, [pathname]);
+  }, [pathname, initialUserName, initialRole, initialBadges]);
 
   const navItems = isProfe
     ? [
@@ -91,7 +118,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Menú Lateral */}
       <aside className="w-64 bg-white border-r border-slate-200 h-screen sticky top-0 flex flex-col justify-between p-4 shadow-sm z-20">
         <div className="space-y-6">
           <div className="px-3 py-2">
@@ -131,7 +157,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        {/* Perfil d'usuari i Tancar Sessió */}
         <div className="border-t border-slate-100 pt-4 space-y-3">
           <div className="flex items-center gap-3 px-2">
             <div className="w-9 h-9 rounded-full bg-indigo-900 text-white font-bold flex items-center justify-center text-sm">
@@ -152,7 +177,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Contingut Principal */}
       <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
   );
