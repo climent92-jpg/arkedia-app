@@ -1,129 +1,67 @@
-import { Mail, Phone } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { getMySchedule, getMyStudents, getMyTeacherProfile } from "@/lib/professor-data";
-import { NoTeacherProfile } from "@/app/professor/page";
+'use client';
 
-// Depèn de la sessió i de dades en viu de Supabase: no es pot prerenderitzar.
-export const dynamic = "force-dynamic";
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
-export default async function ProfessorAlumnesPage() {
-  const teacher = await getMyTeacherProfile();
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-  if (!teacher) {
+export default function AlumnesPage() {
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const getStudentName = (st: any) => {
+    if (!st) return 'Alumne';
     return (
-      <div>
-        <PageHeader title="Els meus alumnes" />
-        <NoTeacherProfile />
-      </div>
+      st.full_name ||
+      st.name ||
+      st.student_name ||
+      (st.first_name ? `${st.first_name} ${st.last_name || ''}`.trim() : null) ||
+      st.email ||
+      `Alumne ${st.id?.toString().slice(0, 4)}`
     );
-  }
+  };
 
-  const [alumnes, schedule] = await Promise.all([
-    getMyStudents(teacher.id),
-    getMySchedule(teacher.id),
-  ]);
+  useEffect(() => {
+    async function loadStudents() {
+      setLoading(true);
+      const { data } = await supabase.from('students').select('*');
+      if (data) setStudents(data);
+      setLoading(false);
+    }
+    loadStudents();
+  }, []);
 
   return (
-    <div>
-      <PageHeader
-        title="Els meus alumnes"
-        description={`${alumnes.length} alumnes assignats`}
-      />
-
-      <div className="flex flex-col gap-3">
-        {alumnes.map((s) => {
-          const classes = schedule.filter((e) => e.studentId === s.id);
-          return (
-            <Card key={s.id}>
-              <CardContent className="p-4 sm:p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold">
-                      {s.firstName} {s.lastName}
-                    </p>
-                    <p className="text-sm text-muted">{s.course}</p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-1.5">
-                    {classes.map((c) => (
-                      <Badge key={c.id} variant="outline">
-                        {c.weekday.slice(0, 3)} {c.startTime.slice(0, 5)}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-3 grid gap-2 border-t border-border pt-3 sm:grid-cols-2">
-                  {s.fatherName || s.fatherEmail || s.fatherPhone ? (
-                    <ContactRow
-                      label="Pare"
-                      name={s.fatherName}
-                      email={s.fatherEmail}
-                      phone={s.fatherPhone}
-                    />
-                  ) : null}
-                  {s.motherName || s.motherEmail || s.motherPhone ? (
-                    <ContactRow
-                      label="Mare"
-                      name={s.motherName}
-                      email={s.motherEmail}
-                      phone={s.motherPhone}
-                    />
-                  ) : null}
-                  {!s.fatherEmail && !s.fatherPhone && !s.motherEmail && !s.motherPhone && (
-                    <p className="text-xs text-muted sm:col-span-2">
-                      Contacte pendent d&apos;importar.
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-
-        {alumnes.length === 0 && (
-          <Card>
-            <CardContent className="p-6 text-center text-sm text-muted">
-              Encara no tens alumnes assignats. Un administrador te&apos;ls pot
-              assignar des de &ldquo;Gestió d&apos;usuaris&rdquo;.
-            </CardContent>
-          </Card>
-        )}
+    <div className="p-6 md:p-10 max-w-5xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Alumnes</h1>
+        <p className="text-sm text-slate-500 mt-1">Llista de tots els teus alumnes assignats.</p>
       </div>
-    </div>
-  );
-}
 
-function ContactRow({
-  label,
-  name,
-  email,
-  phone,
-}: {
-  label: string;
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-}) {
-  return (
-    <div className="rounded-lg bg-black/[0.02] p-2.5">
-      <p className="text-xs font-bold uppercase tracking-wide text-muted">{label}</p>
-      {name && <p className="text-sm font-semibold">{name}</p>}
-      {email && (
-        <a
-          href={`mailto:${email}`}
-          className="flex items-center gap-1.5 text-xs text-arkedia-blue"
-        >
-          <Mail className="size-3" />
-          {email}
-        </a>
-      )}
-      {phone && (
-        <a href={`tel:${phone}`} className="flex items-center gap-1.5 text-xs text-muted">
-          <Phone className="size-3" />
-          {phone}
-        </a>
+      {loading ? (
+        <div className="bg-white p-8 text-center rounded-2xl border border-slate-200 text-slate-400 text-sm">
+          Carregant alumnes...
+        </div>
+      ) : students.length === 0 ? (
+        <div className="bg-white p-8 text-center rounded-2xl border border-slate-200 text-slate-500 text-sm">
+          No hi ha cap alumne registrat.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {students.map((st) => (
+            <div key={st.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-lg shrink-0">
+                {getStudentName(st).charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">{getStudentName(st)}</h3>
+                {st.instrument && <p className="text-xs text-slate-500 mt-0.5">Instrument: {st.instrument}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
