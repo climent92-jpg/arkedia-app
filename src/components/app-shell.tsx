@@ -25,6 +25,7 @@ export function AppShell({
   const pathname = usePathname();
   const [userName, setUserName] = useState<string>(initialUserName || 'Usuari');
   const [userRole, setUserRole] = useState<string>(initialRole || '');
+  const [isMobileOpen, setIsMobileOpen] = useState<boolean>(false);
   const [counts, setCounts] = useState({
     deures: initialBadges?.deures ?? 1,
     material: initialBadges?.material ?? 0,
@@ -37,17 +38,8 @@ export function AppShell({
   const isAdmin = pathname.startsWith('/admin');
 
   useEffect(() => {
-    if (initialUserName) setUserName(initialUserName);
-    if (initialRole) setUserRole(initialRole);
-    if (initialBadges) {
-      setCounts({
-        deures: initialBadges.deures ?? 0,
-        material: initialBadges.material ?? 0,
-        xat: initialBadges.xat ?? 0,
-        avisos: initialBadges.avisos ?? 0,
-      });
-    }
-  }, [initialUserName, initialRole, initialBadges]);
+    setIsMobileOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     async function loadData() {
@@ -81,7 +73,7 @@ export function AppShell({
           });
         }
       } catch (e) {
-        console.error('Error carregant dades del menú:', e);
+        console.error('Error carregant dades:', e);
       }
     }
 
@@ -90,7 +82,6 @@ export function AppShell({
 
   const navItems = isProfe
     ? [
-        { name: 'Agenda', href: `${profePrefix}/agenda`, aliasHref: profePrefix, icon: '📅' },
         { name: 'Horaris', href: `${profePrefix}/horaris`, icon: '🕒' },
         { name: 'Alumnes', href: `${profePrefix}/alumnes`, icon: '👥' },
         { name: 'Deures', href: `${profePrefix}/deures`, icon: '📝', badge: counts.deures },
@@ -104,7 +95,7 @@ export function AppShell({
         { name: 'Usuaris', href: '/admin/usuaris', icon: '👥' },
       ]
     : [
-        { name: 'Agenda', href: '/alumne/agenda', aliasHref: '/alumne', icon: '📅' },
+        { name: 'Horaris', href: '/alumne/agenda', icon: '🕒' },
         { name: 'Deures', href: '/alumne/deures', icon: '📝', badge: counts.deures },
         { name: 'Material', href: '/alumne/material', icon: '📁', badge: counts.material },
         { name: 'Xat', href: '/alumne/xat', icon: '💬', badge: counts.xat },
@@ -118,21 +109,44 @@ export function AppShell({
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <aside className="w-64 bg-white border-r border-slate-200 h-screen sticky top-0 flex flex-col justify-between p-4 shadow-sm z-20">
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
+      {/* Capçalera Mòbil */}
+      <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex justify-between items-center sticky top-0 z-30 shadow-sm">
+        <div>
+          <span className="font-extrabold text-indigo-900 text-lg">ARK#ÈDIA</span>
+          <p className="text-[9px] text-slate-400 font-semibold tracking-widest uppercase">Escola de Música</p>
+        </div>
+        <button
+          onClick={() => setIsMobileOpen(!isMobileOpen)}
+          className="p-2 text-slate-600 hover:text-indigo-600 focus:outline-none"
+        >
+          {isMobileOpen ? '✕' : '☰'}
+        </button>
+      </div>
+
+      {/* Capa de fons per tancar el menú en mòbil */}
+      {isMobileOpen && (
+        <div
+          onClick={() => setIsMobileOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 z-30 md:hidden backdrop-blur-sm"
+        />
+      )}
+
+      {/* Menú Lateral (Sidebar) */}
+      <aside
+        className={`fixed md:sticky top-0 left-0 z-40 w-64 bg-white border-r border-slate-200 h-screen flex flex-col justify-between p-4 shadow-sm transition-transform duration-300 ease-in-out ${
+          isMobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        }`}
+      >
         <div className="space-y-6">
-          <div className="px-3 py-2">
+          <div className="hidden md:block px-3 py-2">
             <span className="font-extrabold text-indigo-900 text-xl tracking-tight">ARK#ÈDIA</span>
             <p className="text-[10px] text-slate-400 font-semibold tracking-widest uppercase">Escola de Música</p>
           </div>
 
           <nav className="space-y-1">
             {navItems.map((item) => {
-              const isActive =
-                pathname === item.href ||
-                (item.aliasHref && pathname === item.aliasHref) ||
-                (item.href !== profePrefix && pathname.startsWith(item.href + '/'));
-
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               return (
                 <Link
                   key={item.name}
@@ -182,7 +196,8 @@ export function AppShell({
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      {/* Contingut Principal */}
+      <main className="flex-1 w-full overflow-y-auto">{children}</main>
     </div>
   );
 }
