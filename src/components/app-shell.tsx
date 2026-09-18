@@ -1,166 +1,159 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
-import { Logo, LogoMark } from "@/components/logo";
-import { ROLE_HOME, navByRole, roleLabel } from "@/lib/nav-config";
-import type { NavBadges } from "@/lib/nav-badges";
-import { useSignOut } from "@/lib/use-sign-out";
-import { cn } from "@/lib/utils";
-import type { UserRole } from "@/types";
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 
-const ROOT_HREFS = new Set(Object.values(ROLE_HOME));
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-function isActive(pathname: string, href: string) {
-  if (ROOT_HREFS.has(href)) {
-    return pathname === href;
-  }
-  return pathname.startsWith(href);
-}
-
-// L'últim tram de la ruta ("/professor/deures" -> "deures") fa de clau del
-// mapa de notificacions: així el mateix AppShell serveix tant per a
-// l'alumne com per al professor sense haver de repetir la llista d'items.
-const BADGE_KEYS = new Set<keyof NavBadges>(["deures", "material", "avisos", "xat"]);
-
-function badgeKeyFor(href: string): keyof NavBadges | undefined {
-  const key = href.split("/").filter(Boolean).pop();
-  return key && BADGE_KEYS.has(key as keyof NavBadges) ? (key as keyof NavBadges) : undefined;
-}
-
-function badgeCountFor(badges: NavBadges | undefined, href: string): number {
-  const key = badgeKeyFor(href);
-  const count = key ? badges?.[key] : undefined;
-  return count && count > 0 ? count : 0;
-}
-
-export function AppShell({
-  role,
-  userName,
-  badges,
-  children,
-}: {
-  role: UserRole;
-  userName: string;
-  badges?: NavBadges;
-  children: React.ReactNode;
-}) {
+export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const items = navByRole[role];
-  const { signOut, loading: signingOut } = useSignOut();
+  const [userName, setUserName] = useState<string>('Usuari');
+  const [userRole, setUserRole] = useState<string>('');
+  const [counts, setCounts] = useState({
+    deures: 1,
+    material: 0,
+    xat: 0,
+    avisos: 0,
+  });
+
+  const isProfe = pathname.startsWith('/profe');
+  const isAdmin = pathname.startsWith('/admin');
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // 1. Carregar usuari actual
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (profile) {
+            setUserName(profile.full_name || profile.name || user.email?.split('@')[0] || 'Usuari');
+            setUserRole(profile.role === 'teacher' ? 'Professor/a' : profile.role === 'admin' ? 'Administrador' : 'Alumne');
+          }
+        }
+
+        // 2. Carregar recompte de notificacions reals de Supabase
+        const { count: countMaterial } = await supabase.from('materials').select('*', { count: 'exact', head: true });
+        const { count: countXat } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('read', false);
+        const { count: countAvisos } = await supabase.from('announcements').select('*', { count: 'exact', head: true });
+
+        setCounts({
+          deures: 1,
+          material: countMaterial || 0,
+          xat: countXat || 0,
+          avisos: countAvisos || 0,
+        });
+      } catch (e) {
+        console.error('Error carregant dades del menú:', e);
+      }
+    }
+
+    loadData();
+  }, [pathname]);
+
+  const navItems = isProfe
+    ? [
+        { name: 'Agenda', href: '/profe/agenda', icon: '📅' },
+        { name: 'Horaris', href: '/profe/horaris', icon: '🕒' },
+        { name: 'Alumnes', href: '/profe/alumnes', icon: '👥' },
+        { name: 'Deures', href: '/profe/deures', icon: '📝', badge: counts.deures },
+        { name: 'Material', href: '/profe/material', icon: '📁', badge: counts.material },
+        { name: 'Xat', href: '/profe/xat', icon: '💬', badge: counts.xat },
+        { name: 'Avisos', href: '/profe/avisos', icon: '📢', badge: counts.avisos },
+      ]
+    : isAdmin
+    ? [
+        { name: 'Horaris', href: '/admin/horaris', icon: '🕒' },
+        { name: 'Usuaris', href: '/admin/usuaris', icon: '👥' },
+      ]
+    : [
+        { name: 'Agenda', href: '/alumne/agenda', icon: '📅' },
+        { name: 'Deures', href: '/alumne/deures', icon: '📝', badge: counts.deures },
+        { name: 'Material', href: '/alumne/material', icon: '📁', badge: counts.material },
+        { name: 'Xat', href: '/alumne/xat', icon: '💬', badge: counts.xat },
+        { name: 'Avisos', href: '/alumne/avisos', icon: '📢', badge: counts.avisos },
+        { name: 'Perfil', href: '/alumne/perfil', icon: '👤' },
+      ];
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
+  };
 
   return (
-    <div className="min-h-dvh flex flex-col md:flex-row">
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:w-64 md:flex-col md:border-r md:border-border md:bg-surface md:sticky md:top-0 md:h-dvh">
-        <div className="p-6">
-          <Link href={ROLE_HOME[role]}>
-            <Logo size="sm" />
-          </Link>
+    <div className="flex min-h-screen bg-slate-50">
+      {/* Menú Lateral (Sidebar) */}
+      <aside className="w-64 bg-white border-r border-slate-200 h-screen sticky top-0 flex flex-col justify-between p-4 shadow-sm z-20">
+        <div className="space-y-6">
+          <div className="px-3 py-2">
+            <span className="font-extrabold text-indigo-900 text-xl tracking-tight">ARK#ÈDIA</span>
+            <p className="text-[10px] text-slate-400 font-semibold tracking-widest uppercase">Escola de Música</p>
+          </div>
+
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-base">{item.icon}</span>
+                    <span>{item.name}</span>
+                  </div>
+                  {item.badge && item.badge > 0 ? (
+                    <span
+                      className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                        isActive ? 'bg-white text-indigo-600' : 'bg-red-500 text-white'
+                      }`}
+                    >
+                      {item.badge}
+                    </span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-        <nav className="flex-1 px-3 space-y-1">
-          {items.map((item) => {
-            const active = isActive(pathname, item.href);
-            const Icon = item.icon;
-            const count = badgeCountFor(badges, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors",
-                  active
-                    ? "bg-arkedia-blue text-white"
-                    : "text-foreground/80 hover:bg-arkedia-blue-light hover:text-arkedia-blue"
-                )}
-              >
-                <span className="relative flex">
-                  <Icon className="size-5" />
-                  {count > 0 && <BadgeCount count={count} />}
-                </span>
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <LogoMark className="size-9 text-sm" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{userName}</p>
-              <p className="text-xs text-muted">{roleLabel[role]}</p>
+
+        {/* Perfil d'usuari i Tancar Sessió */}
+        <div className="border-t border-slate-100 pt-4 space-y-3">
+          <div className="flex items-center gap-3 px-2">
+            <div className="w-9 h-9 rounded-full bg-indigo-900 text-white font-bold flex items-center justify-center text-sm">
+              {userName.charAt(0).toUpperCase()}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-sm font-bold text-slate-800 truncate">{userName}</p>
+              <p className="text-xs text-slate-400 truncate">{userRole || 'Usuari'}</p>
             </div>
           </div>
+
           <button
-            onClick={signOut}
-            disabled={signingOut}
-            className="mt-2 flex w-full items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-muted hover:bg-black/[0.04] disabled:opacity-50"
+            onClick={handleLogout}
+            className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all flex items-center gap-2"
           >
-            <LogOut className="size-4" />
-            {signingOut ? "Sortint..." : "Tancar sessió"}
+            ↪ Tancar sessió
           </button>
         </div>
       </aside>
 
-      {/* Mobile header */}
-      <header className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border bg-surface/90 px-4 py-3 backdrop-blur">
-        <Logo size="sm" />
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-arkedia-blue-light px-3 py-1.5 text-xs font-semibold text-arkedia-blue">
-            {roleLabel[role]}
-          </span>
-          <button
-            onClick={signOut}
-            disabled={signingOut}
-            aria-label="Tancar sessió"
-            className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-black/[0.06] disabled:opacity-50"
-          >
-            <LogOut className="size-4" />
-          </button>
-        </div>
-      </header>
-
-      <main className="flex-1 min-w-0 px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-8">
-        <div className="mx-auto w-full max-w-3xl md:max-w-4xl">{children}</div>
-      </main>
-
-      {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex items-stretch justify-around border-t border-border bg-surface/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
-        {items.map((item) => {
-          const active = isActive(pathname, item.href);
-          const Icon = item.icon;
-          const count = badgeCountFor(badges, item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-semibold",
-                active ? "text-arkedia-blue" : "text-muted"
-              )}
-            >
-              <span className="relative flex">
-                <Icon className={cn("size-5", active && "fill-arkedia-blue-light")} />
-                {count > 0 && <BadgeCount count={count} />}
-              </span>
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Contingut Principal */}
+      <main className="flex-1 overflow-y-auto">{children}</main>
     </div>
-  );
-}
-
-function BadgeCount({ count }: { count: number }) {
-  const label = count > 99 ? "99+" : String(count);
-  return (
-    <span
-      className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-0.5 text-[9px] font-bold leading-none text-white ring-2 ring-surface"
-      aria-label={`${count} notificacions pendents`}
-    >
-      {label}
-    </span>
   );
 }
