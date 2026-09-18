@@ -7,8 +7,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Components exportats requerits per altres pàgines (avisos, deures, material, xat)
-export function NoStudentAssigned({ message }: { message?: string }) {
+// Component exportat que requereixen les pàgines d'avisos, deures, material i xat
+export function NoStudentProfile({ message }: { message?: string }) {
   return (
     <div className="bg-white p-8 text-center rounded-2xl border border-slate-200 text-slate-500 text-sm">
       {message || 'No s\'ha trobat cap alumne assignat.'}
@@ -16,16 +16,20 @@ export function NoStudentAssigned({ message }: { message?: string }) {
   );
 }
 
+export function NoStudentAssigned({ message }: { message?: string }) {
+  return <NoStudentProfile message={message} />;
+}
+
 export function NoStudentFound({ message }: { message?: string }) {
-  return <NoStudentAssigned message={message} />;
+  return <NoStudentProfile message={message} />;
 }
 
 export function NoStudentSelected({ message }: { message?: string }) {
-  return <NoStudentAssigned message={message} />;
+  return <NoStudentProfile message={message} />;
 }
 
 export function NoStudent({ message }: { message?: string }) {
-  return <NoStudentAssigned message={message} />;
+  return <NoStudentProfile message={message} />;
 }
 
 export default function AlumneAgendaPage() {
