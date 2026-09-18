@@ -9,7 +9,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export default function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [userName, setUserName] = useState<string>('Usuari');
   const [userRole, setUserRole] = useState<string>('');
@@ -20,7 +20,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     avisos: 0,
   });
 
-  const isProfe = pathname.startsWith('/profe');
+  const isProfe = pathname.startsWith('/profe') || pathname.startsWith('/professor');
   const isAdmin = pathname.startsWith('/admin');
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           }
         }
 
-        // 2. Carregar recompte de notificacions reals de Supabase
+        // 2. Carregar recompte de notificacions de Supabase
         const { count: countMaterial } = await supabase.from('materials').select('*', { count: 'exact', head: true });
         const { count: countXat } = await supabase.from('messages').select('*', { count: 'exact', head: true }).eq('read', false);
         const { count: countAvisos } = await supabase.from('announcements').select('*', { count: 'exact', head: true });
@@ -91,7 +91,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Menú Lateral (Sidebar) */}
+      {/* Menú Lateral */}
       <aside className="w-64 bg-white border-r border-slate-200 h-screen sticky top-0 flex flex-col justify-between p-4 shadow-sm z-20">
         <div className="space-y-6">
           <div className="px-3 py-2">
@@ -157,3 +157,5 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+export default AppShell;
