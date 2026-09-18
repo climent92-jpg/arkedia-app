@@ -32,7 +32,6 @@ export function AppShell({
     avisos: initialBadges?.avisos ?? 0,
   });
 
-  // Detecta si la ruta és /professor o /profe dinàmicament
   const profePrefix = pathname.startsWith('/professor') ? '/professor' : '/profe';
   const isProfe = pathname.startsWith('/profe') || pathname.startsWith('/professor');
   const isAdmin = pathname.startsWith('/admin');
@@ -91,7 +90,7 @@ export function AppShell({
 
   const navItems = isProfe
     ? [
-        { name: 'Agenda', href: `${profePrefix}/agenda`, icon: '📅' },
+        { name: 'Agenda', href: `${profePrefix}/agenda`, aliasHref: profePrefix, icon: '📅' },
         { name: 'Horaris', href: `${profePrefix}/horaris`, icon: '🕒' },
         { name: 'Alumnes', href: `${profePrefix}/alumnes`, icon: '👥' },
         { name: 'Deures', href: `${profePrefix}/deures`, icon: '📝', badge: counts.deures },
@@ -105,7 +104,7 @@ export function AppShell({
         { name: 'Usuaris', href: '/admin/usuaris', icon: '👥' },
       ]
     : [
-        { name: 'Agenda', href: '/alumne/agenda', icon: '📅' },
+        { name: 'Agenda', href: '/alumne/agenda', aliasHref: '/alumne', icon: '📅' },
         { name: 'Deures', href: '/alumne/deures', icon: '📝', badge: counts.deures },
         { name: 'Material', href: '/alumne/material', icon: '📁', badge: counts.material },
         { name: 'Xat', href: '/alumne/xat', icon: '💬', badge: counts.xat },
@@ -129,7 +128,11 @@ export function AppShell({
 
           <nav className="space-y-1">
             {navItems.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+              const isActive =
+                pathname === item.href ||
+                (item.aliasHref && pathname === item.aliasHref) ||
+                (item.href !== profePrefix && pathname.startsWith(item.href + '/'));
+
               return (
                 <Link
                   key={item.name}
