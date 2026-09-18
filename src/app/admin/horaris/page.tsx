@@ -1,11 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+const getHeaders = () => ({
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+  'Content-Type': 'application/json',
+});
 
 export default function AdminHorarisPage() {
-  const supabase = createClientComponentClient();
-
   const [teachers, setTeachers] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
@@ -13,7 +19,6 @@ export default function AdminHorarisPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
-  // Formularis
   const [studentId, setStudentId] = useState('');
   const [weekday, setWeekday] = useState('Dilluns');
   const [startTime, setStartTime] = useState('16:00');
@@ -23,36 +28,38 @@ export default function AdminHorarisPage() {
 
   const ALL_DAYS = ['Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte'];
 
-  // Carregar usuaris (Professors i Alumnes)
   useEffect(() => {
     async function loadUsers() {
-      const { data, error } = await supabase.from('profiles').select('id, full_name, email, role');
-      if (!error && data) {
-        // Filtrar o separar usuaris segons el seu rol si n'hi ha
-        const profs = data.filter((u) => u.role === 'teacher' || u.role === 'professor') ;
-        const stud = data.filter((u) => u.role === 'student' || u.role === 'alumne');
-
-        setTeachers(profs.length > 0 ? profs : data);
-        setStudents(stud.length > 0 ? stud : data);
-
-        if (data.length > 0) {
-          setSelectedTeacher(profs.length > 0 ? profs[0].id : data[0].id);
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/profiles?select=id,full_name,email,role`, {
+          headers: getHeaders(),
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setTeachers(data);
+          setStudents(data);
+          if (data.length > 0) setSelectedTeacher(data[0].id);
         }
+      } catch (err) {
+        console.error('Error carregant usuaris:', err);
       }
     }
-    loadUsers();
+    if (SUPABASE_URL && SUPABASE_KEY) loadUsers();
   }, []);
 
-  // Carregar franges del professor seleccionat
   const fetchSchedules = async () => {
-    if (!selectedTeacher) return;
+    if (!selectedTeacher || !SUPABASE_URL) return;
     setLoading(true);
-    const { data } = await supabase
-      .from('schedules')
-      .select('*')
-      .eq('teacher_id', selectedTeacher);
-
-    if (data) setSchedules(data);
+    try {
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/schedules?select=*&teacher_id=eq.${selectedTeacher}`,
+        { headers: getHeaders() }
+      );
+      const data = await res.json();
+      if (Array.isArray(data)) setSchedules(data);
+    } catch (err) {
+      console.error('Error carregant horaris:', err);
+    }
     setLoading(false);
   };
 
@@ -60,49 +67,61 @@ export default function AdminHorarisPage() {
     fetchSchedules();
   }, [selectedTeacher]);
 
-  // Crear nova franja horària
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTeacher) return alert('Selecciona un professor.');
     if (!studentId) return alert('Selecciona un alumne.');
 
     setSaving(true);
-    const selectedStudentObj = students.find((s) => s.id === studentId);
-    const studentLabel = selectedStudentObj ? (selectedStudentObj.full_name || selectedStudentObj.email) : 'Alumne';
+    const selectedStudent = students.find((s) => s.id === studentId);
+    const studentName = selectedStudent ? (selectedStudent.full_name || selectedStudent.email) : 'Alumne';
 
-    const { error } = await supabase.from('schedules').insert([
-      {
-        teacher_id: selectedTeacher,
-        student_id: studentId,
-        title: studentLabel,
-        weekday: weekday,
-        day_of_week: weekday,
-        start_time: startTime,
-        end_time: endTime,
-        instrument: instrument,
-        course: instrument,
-      },
-    ]);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/schedules`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify([
+          {
+            teacher_id: selectedTeacher,
+            student_id: studentId,
+            title: studentName,
+            weekday: weekday,
+            day_of_week: weekday,
+            start_time: startTime,
+            end_time: endTime,
+            instrument: instrument,
+            course: instrument,
+          },
+        ]),
+      });
 
-    setSaving(false);
-
-    if (error) {
-      alert('Error en crear la franja: ' + error.message);
-    } else {
-      setShowForm(false);
-      fetchSchedules();
+      if (!res.ok) {
+        const errData = await res.json();
+        alert('Error: ' + JSON.stringify(errData));
+      } else {
+        setShowForm(false);
+        fetchSchedules();
+      }
+    } catch (err: any) {
+      alert('Error en crear la franja: ' + err.message);
     }
+    setSaving(false);
   };
 
-  // Esborrar una franja concreta
   const handleDelete = async (id: string) => {
     if (!confirm('Vols eliminar aquesta franja horària?')) return;
-
-    const { error } = await supabase.from('schedules').delete().eq('id', id);
-    if (error) {
-      alert('Error en eliminar: ' + error.message);
-    } else {
-      fetchSchedules();
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/schedules?id=eq.${id}`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      if (res.ok) {
+        fetchSchedules();
+      } else {
+        alert('Error en eliminar la franja.');
+      }
+    } catch (err: any) {
+      alert('Error: ' + err.message);
     }
   };
 
@@ -121,9 +140,8 @@ export default function AdminHorarisPage() {
         </button>
       </div>
 
-      {/* Selector de Professor */}
       <div className="max-w-xs">
-        <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Professor Seleccionat</label>
+        <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Professor</label>
         <select
           value={selectedTeacher}
           onChange={(e) => setSelectedTeacher(e.target.value)}
@@ -137,10 +155,9 @@ export default function AdminHorarisPage() {
         </select>
       </div>
 
-      {/* Formulari de Creació */}
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white p-6 border rounded-xl shadow-md space-y-4">
-          <h3 className="font-bold text-gray-800 border-b pb-2">Afegir Franja Horària</h3>
+          <h3 className="font-bold text-gray-800 border-b pb-2">Nova Franja Horària</h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -174,7 +191,7 @@ export default function AdminHorarisPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Hora d'inici</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Hora inici</label>
               <input
                 type="time"
                 required
@@ -185,7 +202,7 @@ export default function AdminHorarisPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Hora de fi</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Hora fi</label>
               <input
                 type="time"
                 required
@@ -196,7 +213,7 @@ export default function AdminHorarisPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Instrument / Assignatura</label>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Instrument</label>
               <input
                 type="text"
                 value={instrument}
@@ -211,12 +228,11 @@ export default function AdminHorarisPage() {
             disabled={saving}
             className="w-full bg-blue-700 text-white py-2.5 rounded-lg font-medium text-sm hover:bg-blue-800 shadow-sm"
           >
-            {saving ? 'Guardant...' : 'Assignar i guardar franja'}
+            {saving ? 'Guardant...' : 'Crear i guardar'}
           </button>
         </form>
       )}
 
-      {/* Llistat d'horaris */}
       <div className="space-y-4">
         {loading ? (
           <p className="text-sm text-gray-500">Carregant horaris...</p>
