@@ -11,14 +11,12 @@ export default function AdminHorarisPage() {
   const [teachers, setTeachers] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [selectedTeacher, setSelectedTeacher] = useState<string>('');
-  const [customTeacherName, setCustomTeacherName] = useState<string>('');
   const [schedules, setSchedules] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showForm, setShowForm] = useState<boolean>(false);
 
   // Formularis
   const [studentId, setStudentId] = useState<string>('');
-  const [customStudentName, setCustomStudentName] = useState<string>('');
   const [weekday, setWeekday] = useState<string>('Dilluns');
   const [startTime, setStartTime] = useState<string>('16:00');
   const [endTime, setEndTime] = useState<string>('16:30');
@@ -27,21 +25,57 @@ export default function AdminHorarisPage() {
 
   const ALL_DAYS = ['Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte'];
 
-  // Carregar usuaris
+  // Carregar usuaris provant totes les taules possibles
   useEffect(() => {
     async function loadUsers() {
       try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, role');
+        // 1. Buscar Professors
+        let profList: any[] = [];
+        const resTeachers = await supabase.from('teachers').select('*');
+        if (!resTeachers.error && resTeachers.data && resTeachers.data.length > 0) {
+          profList = resTeachers.data;
+        } else {
+          const resProfs = await supabase.from('professors').select('*');
+          if (!resProfs.error && resProfs.data && resProfs.data.length > 0) {
+            profList = resProfs.data;
+          } else {
+            const resProfiles = await supabase.from('profiles').select('*');
+            if (!resProfiles.error && resProfiles.data) {
+              profList = resProfiles.data;
+            }
+          }
+        }
 
-        if (!error && data && data.length > 0) {
-          setTeachers(data);
-          setStudents(data);
-          setSelectedTeacher(data[0].id);
+        // 2. Buscar Alumnes
+        let studList: any[] = [];
+        const resStudents = await supabase.from('students').select('*');
+        if (!resStudents.error && resStudents.data && resStudents.data.length > 0) {
+          studList = resStudents.data;
+        } else {
+          const resAlumnes = await supabase.from('alumnes').select('*');
+          if (!resAlumnes.error && resAlumnes.data && resAlumnes.data.length > 0) {
+            studList = resAlumnes.data;
+          } else {
+            studList = profList;
+          }
+        }
+
+        const formatUser = (u: any) => ({
+          id: u.id,
+          name: u.full_name || u.name || u.nombre || u.email || 'Sense Nom',
+        });
+
+        const formattedTeachers = profList.map(formatUser);
+        const formattedStudents = studList.map(formatUser);
+
+        setTeachers(formattedTeachers);
+        setStudents(formattedStudents);
+
+        if (formattedTeachers.length > 0) {
+          setSelectedTeacher(formattedTeachers[0].id);
         }
       } catch (e) {
-        console.error('Error carregant perfils:', e);
+        console.error('Error carregant usuaris:', e);
       }
     }
     loadUsers();
@@ -71,18 +105,17 @@ export default function AdminHorarisPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
+    if (!selectedTeacher) return alert('Selecciona un professor.');
+    if (!studentId) return alert('Selecciona un alumne.');
 
-    const activeTeacherId = selectedTeacher || 'manual-teacher';
+    setSaving(true);
     const selectedStudentObj = students.find((s) => s.id === studentId);
-    const studentLabel = selectedStudentObj 
-      ? (selectedStudentObj.full_name || selectedStudentObj.email)
-      : (customStudentName || 'Alumne');
+    const studentLabel = selectedStudentObj ? selectedStudentObj.name : 'Alumne';
 
     const { error } = await supabase.from('schedules').insert([
       {
-        teacher_id: activeTeacherId,
-        student_id: studentId || null,
+        teacher_id: selectedTeacher,
+        student_id: studentId,
         title: studentLabel,
         weekday: weekday,
         day_of_week: weekday,
@@ -98,7 +131,6 @@ export default function AdminHorarisPage() {
     if (error) {
       alert('Error en crear la franja: ' + error.message);
     } else {
-      setCustomStudentName('');
       setShowForm(false);
       fetchSchedules();
     }
@@ -139,32 +171,18 @@ export default function AdminHorarisPage() {
             Professor Seleccionat
           </label>
           
-          {teachers.length > 0 ? (
-            <select
-              value={selectedTeacher}
-              onChange={(e) => setSelectedTeacher(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
-            >
-              {teachers.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.full_name || t.email}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Escriu el nom del professor..."
-                value={customTeacherName}
-                onChange={(e) => setCustomTeacherName(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
-              />
-              <p className="text-xs text-amber-600">
-                ⚠️ No s'han trobat usuaris a la base de dades. Pots escriure el nom manualment.
-              </p>
-            </div>
-          )}
+          <select
+            value={selectedTeacher}
+            onChange={(e) => setSelectedTeacher(e.target.value)}
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+          >
+            {teachers.length === 0 && <option value="">-- Carregant professors... --</option>}
+            {teachers.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Formulari de Creació */}
@@ -178,29 +196,19 @@ export default function AdminHorarisPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Alumne</label>
-                {students.length > 0 ? (
-                  <select
-                    value={studentId}
-                    onChange={(e) => setStudentId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm text-slate-800"
-                  >
-                    <option value="">-- Selecciona l'alumne --</option>
-                    {students.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.full_name || s.email}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nom de l'alumne"
-                    value={customStudentName}
-                    onChange={(e) => setCustomStudentName(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm text-slate-800"
-                  />
-                )}
+                <select
+                  required
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-sm text-slate-800"
+                >
+                  <option value="">-- Selecciona l'alumne --</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
