@@ -7,6 +7,27 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Components exportats requerits per altres pàgines (avisos, deures, material, xat)
+export function NoStudentAssigned({ message }: { message?: string }) {
+  return (
+    <div className="bg-white p-8 text-center rounded-2xl border border-slate-200 text-slate-500 text-sm">
+      {message || 'No s\'ha trobat cap alumne assignat.'}
+    </div>
+  );
+}
+
+export function NoStudentFound({ message }: { message?: string }) {
+  return <NoStudentAssigned message={message} />;
+}
+
+export function NoStudentSelected({ message }: { message?: string }) {
+  return <NoStudentAssigned message={message} />;
+}
+
+export function NoStudent({ message }: { message?: string }) {
+  return <NoStudentAssigned message={message} />;
+}
+
 export default function AlumneAgendaPage() {
   const [userName, setUserName] = useState<string>('Lucas');
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -18,48 +39,27 @@ export default function AlumneAgendaPage() {
     async function fetchAgenda() {
       setLoading(true);
       try {
-        // 1. Obtenir informació de l'usuari connectat
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        let matchingIds: string[] = [];
-        let searchTerms: string[] = ['Lucas', 'Baró'];
-
-        if (user) {
-          matchingIds.push(user.id);
-          if (user.email) searchTerms.push(user.email);
-
-          // Buscar dades del perfil
-          const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-          if (prof) {
-            if (prof.full_name) {
-              setUserName(prof.full_name.split(' ')[0]);
-              searchTerms.push(prof.full_name);
-            }
-          }
-
-          // Buscar dades de la taula d'alumnes
-          const { data: stud } = await supabase.from('students').select('*').or(`id.eq.${user.id},email.eq.${user.email}`).maybeSingle();
-          if (stud) {
-            if (stud.id) matchingIds.push(stud.id);
-            if (stud.name) searchTerms.push(stud.name);
-            if (stud.full_name) searchTerms.push(stud.full_name);
-          }
-        }
-
-        // 2. Carregar totes les classes i filtrar les de l'alumne
-        const { data: allSchedules, error } = await supabase.from('schedules').select('*');
+        // Carregar totes les classes de la taula
+        const { data: allSchedules, error } = await supabase
+          .from('schedules')
+          .select('*');
 
         if (!error && allSchedules) {
-          const mySchedules = allSchedules.filter((item) => {
-            const matchId = matchingIds.includes(item.student_id);
-            const matchName = searchTerms.some((term) =>
-              item.title && item.title.toLowerCase().includes(term.toLowerCase())
-            );
-            return matchId || matchName;
-          });
+          setSchedules(allSchedules);
+        }
 
-          // Si el filtre troba classes les mostra; altrament mostra totes per evitar pantalles buides
-          setSchedules(mySchedules.length > 0 ? mySchedules : allSchedules);
+        // Carregar el nom de l'usuari actiu
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authData.user.id)
+            .maybeSingle();
+
+          if (profile?.full_name) {
+            setUserName(profile.full_name.split(' ')[0]);
+          }
         }
       } catch (e) {
         console.error('Error carregant agenda:', e);
