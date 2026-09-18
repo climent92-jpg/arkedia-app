@@ -11,7 +11,6 @@ export default function MaterialPage() {
   const [students, setStudents] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
   
-  // Per defecte tots seleccionats
   const [selectAll, setSelectAll] = useState(true);
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
 
@@ -21,6 +20,19 @@ export default function MaterialPage() {
   const [fileUrl, setFileUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+
+  // Funció per obtenir el nom real de l'alumne independentment del camp de Supabase
+  const getStudentName = (st: any) => {
+    if (!st) return 'Alumne';
+    return (
+      st.full_name ||
+      st.name ||
+      st.student_name ||
+      (st.first_name ? `${st.first_name} ${st.last_name || ''}`.trim() : null) ||
+      st.email ||
+      `Alumne ${st.id?.toString().slice(0, 4)}`
+    );
+  };
 
   useEffect(() => {
     async function loadData() {
@@ -65,7 +77,6 @@ export default function MaterialPage() {
     if (!title) return alert('Si us plau, posa un títol al material.');
 
     setUploading(true);
-
     const targets = selectAll ? [null] : selectedStudents;
 
     try {
@@ -103,8 +114,6 @@ export default function MaterialPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        
-        {/* Selector Alumne estil Deures */}
         <div className="relative">
           <label className="block text-xs font-semibold text-slate-700 mb-1">Alumne</label>
           <button
@@ -116,7 +125,7 @@ export default function MaterialPage() {
               {selectAll
                 ? 'Tots els alumnes'
                 : selectedStudents.length === 1
-                ? students.find((s) => s.id === selectedStudents[0])?.full_name || '1 Alumne seleccionat'
+                ? getStudentName(students.find((s) => s.id === selectedStudents[0]))
                 : `${selectedStudents.length} Alumnes seleccionats`}
             </span>
             <span className="text-xs text-slate-400">▼</span>
@@ -124,7 +133,7 @@ export default function MaterialPage() {
 
           {showStudentDropdown && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 z-30 space-y-2 max-h-56 overflow-y-auto">
-              <label className="flex items-center gap-2 text-sm text-slate-800 font-bold p-1 hover:bg-slate-50 rounded cursor-pointer">
+              <label className="flex items-center gap-2 text-sm text-slate-800 font-bold p-1.5 hover:bg-slate-50 rounded cursor-pointer">
                 <input
                   type="checkbox"
                   checked={selectAll}
@@ -135,14 +144,14 @@ export default function MaterialPage() {
               </label>
               <hr className="border-slate-100" />
               {students.map((st) => (
-                <label key={st.id} className="flex items-center gap-2 text-sm text-slate-700 p-1 hover:bg-slate-50 rounded cursor-pointer">
+                <label key={st.id} className="flex items-center gap-2 text-sm text-slate-700 p-1.5 hover:bg-slate-50 rounded cursor-pointer">
                   <input
                     type="checkbox"
                     checked={!selectAll && selectedStudents.includes(st.id)}
                     onChange={() => handleToggleStudent(st.id)}
                     className="rounded border-slate-300 text-indigo-600"
                   />
-                  {st.full_name || st.name || 'Alumne'}
+                  {getStudentName(st)}
                 </label>
               ))}
             </div>
