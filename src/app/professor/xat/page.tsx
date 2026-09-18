@@ -1,73 +1,66 @@
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
-import { PageHeader } from "@/components/page-header";
-import { Card, CardContent } from "@/components/ui/card";
-import { getMyStudents, getMyTeacherProfile } from "@/lib/professor-data";
-import { getThreadsForTeacher } from "@/lib/chat-data";
-import { NoTeacherProfile } from "@/app/professor/page";
+'use client';
 
-// Depèn de la sessió i de dades en viu de Supabase: no es pot prerenderitzar.
-export const dynamic = "force-dynamic";
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
-export default async function ProfessorXatPage() {
-  const teacher = await getMyTeacherProfile();
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-  if (!teacher) {
-    return (
-      <div>
-        <PageHeader title="Xat" />
-        <NoTeacherProfile />
-      </div>
-    );
-  }
+export default function XatPage() {
+  const [chats, setChats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const students = await getMyStudents(teacher.id);
-  const threads = await getThreadsForTeacher(teacher.id, students);
+  useEffect(() => {
+    async function loadChats() {
+      setLoading(true);
+      const { data } = await supabase.from('students').select('*');
+      if (data) {
+        setChats(data);
+      }
+      setLoading(false);
+    }
+    loadChats();
+  }, []);
 
   return (
-    <div>
-      <PageHeader title="Xat" description="Converses amb les famílies." />
-
-      <div className="flex flex-col gap-2.5">
-        {threads.map((t) => (
-          <Link key={t.id} href={`/professor/xat/${t.id}`}>
-            <Card className="transition-colors hover:border-arkedia-blue">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-arkedia-blue-light font-bold text-arkedia-blue">
-                  {t.studentFirstName[0]}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-bold">
-                    Família {t.studentLastName.split(" ")[0]}
-                  </p>
-                  <p className="truncate text-sm text-muted">
-                    {t.lastMessage ?? "Encara no hi ha cap missatge"}
-                  </p>
-                </div>
-                <ChevronRight className="size-4 shrink-0 text-muted" />
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-
-        {threads.length === 0 && students.length === 0 && (
-          <Card>
-            <CardContent className="p-6 text-center text-sm text-muted">
-              Encara no tens cap alumne assignat per poder xatejar-hi.
-            </CardContent>
-          </Card>
-        )}
-
-        {threads.length === 0 && students.length > 0 && (
-          <Card>
-            <CardContent className="p-6 text-center text-sm text-muted">
-              Tens {students.length} alumne{students.length === 1 ? "" : "s"} assignat
-              {students.length === 1 ? "" : "s"}, però no s&apos;han pogut carregar les
-              converses. Torna-ho a provar en uns segons.
-            </CardContent>
-          </Card>
-        )}
+    <div className="p-6 md:p-10 max-w-5xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Xat</h1>
+        <p className="text-sm text-slate-500 mt-1">Converses amb les famílies i alumnes.</p>
       </div>
+
+      {loading ? (
+        <div className="bg-white p-8 text-center rounded-2xl border border-slate-200 text-slate-400 text-sm">
+          Carregant converses...
+        </div>
+      ) : chats.length === 0 ? (
+        <div className="bg-white p-8 text-center rounded-2xl border border-slate-200 text-slate-500 text-sm">
+          No hi ha cap xat actiu.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {chats.map((chat) => (
+            <div
+              key={chat.id}
+              className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-11 h-11 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-base shrink-0">
+                  {(chat.full_name || chat.name || 'F').charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col justify-center">
+                  <h3 className="font-bold text-slate-900 text-sm leading-snug">
+                    Família {chat.full_name || chat.name || 'Alumne'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Fes clic per obrir la conversa</p>
+                </div>
+              </div>
+              <span className="text-slate-400 text-lg">›</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
