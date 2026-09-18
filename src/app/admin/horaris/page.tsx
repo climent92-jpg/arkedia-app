@@ -25,11 +25,65 @@ export default function AdminHorarisPage() {
 
   const ALL_DAYS = ['Dilluns', 'Dimarts', 'Dimecres', 'Dijous', 'Divendres', 'Dissabte'];
 
-  // Carregar usuaris provant totes les taules possibles
+  // Funció per extreure el nom real d'un objecte d'usuari
+  const extractName = (item: any, profilesMap: Record<string, string>): string => {
+    if (!item) return 'Sense Nom';
+
+    // 1. Cercar en el mapa de perfils enllaçat per ID o email
+    if (item.id && profilesMap[item.id]) return profilesMap[item.id];
+    if (item.user_id && profilesMap[item.user_id]) return profilesMap[item.user_id];
+    if (item.profile_id && profilesMap[item.profile_id]) return profilesMap[item.profile_id];
+    if (item.email && profilesMap[item.email]) return profilesMap[item.email];
+
+    // 2. Cercar propietats directes de nom
+    if (item.full_name && String(item.full_name).trim()) return item.full_name;
+    if (item.name && String(item.name).trim()) return item.name;
+    if (item.nom && String(item.nom).trim()) return item.nom;
+    if (item.nombre && String(item.nombre).trim()) return item.nombre;
+
+    // 3. Combinar nom i cognoms
+    const first = item.first_name || item.nom || item.given_name;
+    const last = item.last_name || item.cognoms || item.apellidos;
+    if (first || last) {
+      return `${first || ''} ${last || ''}`.trim();
+    }
+
+    // 4. Cercar qualsevol propietat de text que no sigui ID o email
+    for (const key of Object.keys(item)) {
+      if (['id', 'created_at', 'updated_at', 'role', 'email', 'user_id', 'teacher_id', 'student_id'].includes(key)) continue;
+      const val = item[key];
+      if (typeof val === 'string' && val.trim().length > 1 && !val.includes('@') && !val.includes('http')) {
+        return val;
+      }
+    }
+
+    // 5. Netejar l'email per convertir-lo en nom si no hi ha cap altra opció
+    if (item.email) {
+      const parts = item.email.split('@')[0].split('.');
+      return parts.map((p: string) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
+
+    return 'Sense Nom';
+  };
+
+  // Carregar usuaris i perfils
   useEffect(() => {
     async function loadUsers() {
       try {
-        // 1. Buscar Professors
+        // Carregar taula profiles per a la correspondència de noms
+        const profilesMap: Record<string, string> = {};
+        const { data: profilesData } = await supabase.from('profiles').select('*');
+        if (profilesData) {
+          profilesData.forEach((p) => {
+            const name = p.full_name || p.name || p.nom || p.nombre;
+            if (name) {
+              if (p.id) profilesMap[p.id] = name;
+              if (p.email) profilesMap[p.email] = name;
+            }
+          });
+        }
+
+        // Carregar Professors
         let profList: any[] = [];
         const resTeachers = await supabase.from('teachers').select('*');
         if (!resTeachers.error && resTeachers.data && resTeachers.data.length > 0) {
@@ -38,15 +92,12 @@ export default function AdminHorarisPage() {
           const resProfs = await supabase.from('professors').select('*');
           if (!resProfs.error && resProfs.data && resProfs.data.length > 0) {
             profList = resProfs.data;
-          } else {
-            const resProfiles = await supabase.from('profiles').select('*');
-            if (!resProfiles.error && resProfiles.data) {
-              profList = resProfiles.data;
-            }
+          } else if (profilesData) {
+            profList = profilesData.filter((p) => p.role === 'teacher' || p.role === 'professor');
           }
         }
 
-        // 2. Buscar Alumnes
+        // Carregar Alumnes
         let studList: any[] = [];
         const resStudents = await supabase.from('students').select('*');
         if (!resStudents.error && resStudents.data && resStudents.data.length > 0) {
@@ -55,18 +106,20 @@ export default function AdminHorarisPage() {
           const resAlumnes = await supabase.from('alumnes').select('*');
           if (!resAlumnes.error && resAlumnes.data && resAlumnes.data.length > 0) {
             studList = resAlumnes.data;
-          } else {
-            studList = profList;
+          } else if (profilesData) {
+            studList = profilesData.filter((p) => p.role === 'student' || p.role === 'alumne');
           }
         }
 
-        const formatUser = (u: any) => ({
-          id: u.id,
-          name: u.full_name || u.name || u.nombre || u.email || 'Sense Nom',
-        });
+        const formattedTeachers = profList.map((t) => ({
+          id: t.id,
+          name: extractName(t, profilesMap),
+        }));
 
-        const formattedTeachers = profList.map(formatUser);
-        const formattedStudents = studList.map(formatUser);
+        const formattedStudents = studList.map((s) => ({
+          id: s.id,
+          name: extractName(s, profilesMap),
+        }));
 
         setTeachers(formattedTeachers);
         setStudents(formattedStudents);
@@ -75,7 +128,7 @@ export default function AdminHorarisPage() {
           setSelectedTeacher(formattedTeachers[0].id);
         }
       } catch (e) {
-        console.error('Error carregant usuaris:', e);
+        console.error('Error carregant dades:', e);
       }
     }
     loadUsers();
