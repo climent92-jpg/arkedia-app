@@ -26,20 +26,35 @@ export default function DeuresPage() {
       st.name ||
       st.student_name ||
       (st.first_name ? `${st.first_name} ${st.last_name || ''}`.trim() : null) ||
-      st.email ||
-      `Alumne ${st.id?.toString().slice(0, 4)}`
+      st.email
     );
   };
 
   useEffect(() => {
     async function loadData() {
-      const { data: stData } = await supabase.from('students').select('*');
-      if (stData) {
-        setStudents(stData);
-        setSelectedStudents(stData.map((s) => s.id));
+      // 1. Obtenir l'usuari actual (Professor)
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        // Només els alumnes assignats a aquest professor
+        const { data: stData } = await supabase
+          .from('students')
+          .select('*')
+          .eq('teacher_id', user.id);
+
+        if (stData) {
+          setStudents(stData);
+          setSelectedStudents(stData.map((s) => s.id));
+        }
+      } else {
+        const { data: stData } = await supabase.from('students').select('*');
+        if (stData) {
+          setStudents(stData);
+          setSelectedStudents(stData.map((s) => s.id));
+        }
       }
 
-      const { data: hwData } = await supabase.from('homework').select('*');
+      const { data: hwData } = await supabase.from('homework').select('*').order('created_at', { ascending: false });
       if (hwData) setHomeworks(hwData);
     }
     loadData();
@@ -88,125 +103,151 @@ export default function DeuresPage() {
         ]);
       }
 
-      alert('Deures creats correctament!');
       setTitle('');
       setDescription('');
       setDueDate('');
+      setShowStudentDropdown(false);
 
-      const { data: hwData } = await supabase.from('homework').select('*');
+      const { data: hwData } = await supabase.from('homework').select('*').order('created_at', { ascending: false });
       if (hwData) setHomeworks(hwData);
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      alert('Error en desar: ' + e.message);
     }
 
     setSaving(false);
   };
 
   return (
-    <div className="p-6 md:p-10 max-w-5xl mx-auto space-y-6">
+    <div className="p-6 md:p-10 max-w-4xl mx-auto space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Deures</h1>
-        <p className="text-sm text-slate-500 mt-1">Assigna deures i exercicis als teus alumnes.</p>
+        <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Deures i exercicis</h1>
+        <p className="text-sm text-slate-500 mt-1">Assigna tasques setmanals als teus alumnes assignats.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <form onSubmit={handleSubmit} className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-sm shadow-slate-100 space-y-5">
+        
+        {/* Selector d'alumnes assignats */}
         <div className="relative">
-          <label className="block text-xs font-semibold text-slate-700 mb-1">Alumne</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Alumne / Grup</label>
           <button
             type="button"
             onClick={() => setShowStudentDropdown(!showStudentDropdown)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-left flex justify-between items-center text-slate-800 font-medium"
+            className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-left flex justify-between items-center text-slate-800 font-semibold transition-all focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
           >
-            <span>
-              {selectAll
-                ? 'Tots els alumnes'
-                : selectedStudents.length === 1
-                ? getStudentName(students.find((s) => s.id === selectedStudents[0]))
-                : `${selectedStudents.length} Alumnes seleccionats`}
-            </span>
-            <span className="text-xs text-slate-400">▼</span>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+              <span>
+                {selectAll
+                  ? `Tots els alumnes assignats (${students.length})`
+                  : selectedStudents.length === 1
+                  ? getStudentName(students.find((s) => s.id === selectedStudents[0]))
+                  : `${selectedStudents.length} alumnes seleccionats`}
+              </span>
+            </div>
+            <span className="text-xs text-slate-400 font-bold">{showStudentDropdown ? '▲' : '▼'}</span>
           </button>
 
           {showStudentDropdown && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg p-3 z-30 space-y-2 max-h-56 overflow-y-auto">
-              <label className="flex items-center gap-2 text-sm text-slate-800 font-bold p-1.5 hover:bg-slate-50 rounded cursor-pointer">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl p-3 z-30 space-y-1 max-h-60 overflow-y-auto animate-in fade-in duration-150">
+              <label className="flex items-center gap-3 text-sm text-slate-900 font-bold p-2.5 hover:bg-indigo-50/60 rounded-xl cursor-pointer transition-colors">
                 <input
                   type="checkbox"
                   checked={selectAll}
                   onChange={handleSelectAllToggle}
-                  className="rounded border-slate-300 text-indigo-600"
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
                 />
-                Tots els alumnes
+                Tots els alumnes assignats
               </label>
-              <hr className="border-slate-100" />
-              {students.map((st) => (
-                <label key={st.id} className="flex items-center gap-2 text-sm text-slate-700 p-1.5 hover:bg-slate-50 rounded cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={!selectAll && selectedStudents.includes(st.id)}
-                    onChange={() => handleToggleStudent(st.id)}
-                    className="rounded border-slate-300 text-indigo-600"
-                  />
-                  {getStudentName(st)}
-                </label>
-              ))}
+              <div className="h-px bg-slate-100 my-1" />
+              {students.length === 0 ? (
+                <p className="text-xs text-slate-400 p-2">No tens alumnes assignats directament.</p>
+              ) : (
+                students.map((st) => (
+                  <label key={st.id} className="flex items-center gap-3 text-sm text-slate-700 p-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={!selectAll && selectedStudents.includes(st.id)}
+                      onChange={() => handleToggleStudent(st.id)}
+                      className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                    />
+                    <span className="font-medium">{getStudentName(st)}</span>
+                  </label>
+                ))
+              )}
             </div>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Títol</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Títol dels deures</label>
             <input
               type="text"
-              placeholder="Ex: Escala de Do Major"
+              placeholder="Ex: Escala de Do Major i Arpegi"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Data d'entrega (opcional)</label>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Data límit d'entrega (opcional)</label>
             <input
               type="date"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-700 mb-1">Descripció</label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Detalls / Exercicis a practicar</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-800"
+            placeholder="Descriu quins compasos practicar, velocitat del metrònom, etc."
+            className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-800 font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all placeholder:text-slate-400"
           />
         </div>
 
         <button
           type="submit"
           disabled={saving}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm transition-all shadow-sm"
+          className="w-full bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-bold py-3.5 rounded-2xl text-sm transition-all shadow-md shadow-indigo-500/10"
         >
-          {saving ? 'Guardant...' : 'Crear deures'}
+          {saving ? 'Guardant...' : 'Crear i assignar deures'}
         </button>
       </form>
 
-      <div className="space-y-3">
-        <h2 className="font-bold text-slate-800 text-base">Deures assignats</h2>
+      {/* Llista de Deures Assignats */}
+      <div className="space-y-4">
+        <h2 className="font-bold text-slate-800 text-base flex items-center gap-2">
+          <span>Deures actius</span>
+          <span className="text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full">{homeworks.length}</span>
+        </h2>
+
         {homeworks.length === 0 ? (
-          <p className="text-xs text-slate-400 italic">No hi ha deures creats.</p>
+          <div className="bg-white p-8 text-center rounded-3xl border border-slate-200/80 text-slate-400 text-sm">
+            No hi ha deures creats actualment.
+          </div>
         ) : (
-          homeworks.map((hw) => (
-            <div key={hw.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-              <p className="font-bold text-slate-800 text-sm">{hw.title}</p>
-              {hw.description && <p className="text-xs text-slate-500 mt-1">{hw.description}</p>}
-            </div>
-          ))
+          <div className="grid gap-3">
+            {homeworks.map((hw) => (
+              <div key={hw.id} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-1">
+                <div className="flex justify-between items-start gap-4">
+                  <p className="font-bold text-slate-900 text-sm">{hw.title}</p>
+                  {hw.due_date && (
+                    <span className="text-xs font-semibold bg-amber-50 text-amber-700 px-2.5 py-1 rounded-lg border border-amber-100/60 shrink-0">
+                      Entrega: {hw.due_date}
+                    </span>
+                  )}
+                </div>
+                {hw.description && <p className="text-xs text-slate-500 leading-relaxed mt-1">{hw.description}</p>}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
